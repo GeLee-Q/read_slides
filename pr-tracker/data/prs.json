@@ -12,9 +12,9 @@
       "url": "https://github.com/radixark/miles/pull/952",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "移除已废弃的FastAPI服务器和Qwen3启动脚本，清理代码库中的过时文件",
-      "reason": "这个改动涉及该仓库特有的服务架构变更和启动脚本删除，是对项目特定实现细节的清理维护，不涉及通用算法或接口修改，其他仓库不会受益",
-      "analyzed_at": "2026-04-19T11:40:25.278765+00:00"
+      "summary": "删除已废弃的 swe-agent FastAPI 服务文件 server.py 和 Qwen3-4B 启动脚本 run-qwen3.sh",
+      "reason": "此 PR 清理的是该仓库特有的内部工具：server.py 是该仓库自己封装 Harbor 用于 agent-environment 编排的独立服务，run-qwen3.sh 是该仓库特定的模型启动脚本，均属于仓库私有的基础设施和工具脚本，与 rollout、训练循环、RL 算法等通用组件无关，其他框架不会受此影响。",
+      "analyzed_at": "2026-04-19T13:29:34.579071+00:00"
     },
     {
       "id": "radixark/miles#953",
@@ -28,9 +28,9 @@
       "url": "https://github.com/radixark/miles/pull/953",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "添加 RecordLogger 类用于将会话记录写入磁盘，支持按会话持久化日志记录",
-      "reason": "该功能是针对 miles 仓库特定的会话管理需求，涉及该仓库特有的 SessionRegistry 集成、CLI 参数配置和会话文件处理逻辑，其他相似库的实现方式和需求可能差异较大",
-      "analyzed_at": "2026-04-19T11:40:23.213079+00:00"
+      "summary": "新增 RecordLogger 类，将 SessionRecord 对象以每行一个 JSON 的格式写入磁盘，并集成到 SessionRegistry 中，通过 --session-record-log-dir 参数控制开关",
+      "reason": "该 PR 围绕 miles 仓库特有的 SessionRegistry、SessionRecord、chat completion 会话管理机制展开，属于该仓库内部的会话记录/日志工具，与 rollout、训练循环、RL 算法、权重同步等通用组件无关，其他框架不存在相同的 Session 抽象层，因此属于 repo-specific",
+      "analyzed_at": "2026-04-19T13:29:30.056953+00:00"
     },
     {
       "id": "radixark/miles#954",
@@ -44,9 +44,9 @@
       "url": "https://github.com/radixark/miles/pull/954",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "在 swe-agent-v2 中将 rollout-batch-size、n-samples-per-prompt 和 global-batch-size 从硬编码改为 CLI 参数暴露",
-      "reason": "这个改动是针对该仓库特定的 swe-agent-v2 实验脚本的配置调整，涉及特定脚本的参数暴露和组织，不是通用的算法或训练逻辑改进，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:40:20.772681+00:00"
+      "summary": "将 swe-agent-v2 示例脚本中硬编码的 rollout-batch-size、n-samples-per-prompt、global-batch-size 参数暴露为 CLI 参数",
+      "reason": "该改动仅针对 miles 仓库下 examples/experimental/swe-agent-v2/run.py 这一特定示例脚本的 CLI 参数配置，属于该仓库特有的脚本结构调整，不涉及通用训练组件（如 rollout 引擎、PPO 算法、权重同步等），其他框架不会受益于此改动",
+      "analyzed_at": "2026-04-19T13:29:25.559389+00:00"
     },
     {
       "id": "radixark/miles#957",
@@ -60,9 +60,9 @@
       "url": "https://github.com/radixark/miles/pull/957",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复 feat/qwen35 分支中 CP 问题，通过更新 zigzag 配置",
-      "reason": "该 PR 针对特定的 qwen35 特性分支和该仓库的 zigzag 配置进行修复，是仓库特有的实现细节调整，不涉及通用算法或接口改动",
-      "analyzed_at": "2026-04-19T11:40:18.363115+00:00"
+      "summary": "修复 feat/qwen35 分支中的 context parallelism（CP）问题，通过更新 zigzag 实现来解决",
+      "reason": "该 PR 针对 Qwen3.5 模型的专属适配分支进行 CP（context parallelism）的 zigzag 修复，属于该仓库对特定模型（Qwen3.5）的专属 patch，而非通用的 context parallelism 机制修复，因此归为 repo-specific",
+      "analyzed_at": "2026-04-19T13:29:21.568313+00:00"
     },
     {
       "id": "radixark/miles#958",
@@ -75,10 +75,10 @@
       "merged_at": "2026-04-09T05:29:02Z",
       "url": "https://github.com/radixark/miles/pull/958",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为异步rollout添加权重陈旧度控制，跟踪轨迹生成的模型版本，支持丢弃权重版本过旧的rollout组",
-      "reason": "这是针对miles框架中SGLang集成的具体实现，涉及该仓库特有的rollout机制、Sample数据结构、引擎交互逻辑和配置参数（--max-weight-staleness），是miles框架内部的特定优化，其他相似库的实现方式和接口差异较大",
-      "analyzed_at": "2026-04-19T11:40:15.570952+00:00"
+      "scope": "universal",
+      "summary": "为全异步 rollout 添加权重staleness控制，支持丢弃使用过旧模型权重生成的轨迹，并记录相关统计信息",
+      "reason": "权重staleness问题是所有异步RL训练框架的通用挑战——当rollout引擎与trainer异步运行时，如何控制样本使用的模型版本与当前训练版本的差距是普遍需求。该PR的核心机制（版本追踪、staleness阈值过滤、数据回收）适用于任何采用异步rollout架构的框架（如slime等），不依赖miles特有的实现细节。",
+      "analyzed_at": "2026-04-19T13:29:17.417169+00:00"
     },
     {
       "id": "radixark/miles#959",
@@ -92,9 +92,9 @@
       "url": "https://github.com/radixark/miles/pull/959",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "更新 swe-agent 运行时参数以支持长上下文 DP 注意力机制，包括增加超时时间、序列长度和配置 8-GPU 数据并行",
-      "reason": "这是针对 miles 仓库特有的 swe-agent 运行时配置调整，涉及该项目特定的部署参数、超时设置和硬件配置优化，不涉及通用算法或接口设计，其他相似库的相同功能实现方式可能完全不同",
-      "analyzed_at": "2026-04-19T11:40:12.995381+00:00"
+      "summary": "为长上下文场景更新 swe-agent 运行时参数，包括增大超时时间、序列长度上限，并配置 8-GPU DP attention",
+      "reason": "该 PR 调整的是 miles 仓库特有的 swe-agent 运行时配置参数（如 --miles-router-timeout、session server timeout 等），涉及仓库自身的路由器和调度器配置，以及针对特定任务场景的硬件并行参数调整，不具备跨框架复用价值，属于 repo-specific 改动",
+      "analyzed_at": "2026-04-19T13:29:12.380865+00:00"
     },
     {
       "id": "radixark/miles#960",
@@ -108,9 +108,9 @@
       "url": "https://github.com/radixark/miles/pull/960",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复OpenAI端点路径中缺失的prefix_cache_info统计收集，使session-based rollout的prefix_cache_hit_rate能够正确上报",
-      "reason": "这个修复针对radixark/miles仓库特定的OpenAI端点实现路径，补齐与/generate路径中已有的update_from_meta_info调用的对称性，属于该仓库特有的集成细节问题",
-      "analyzed_at": "2026-04-19T11:40:10.471914+00:00"
+      "summary": "修复 OpenAI/session rollout 路径未收集 prefix cache 统计信息，导致 prefix_cache_hit_rate 始终为 0 的问题",
+      "reason": "此修复针对 miles 仓库中 OpenAI/session rollout 路径未调用 update_from_meta_info 导致 prefix_cache_hit_rate 恒为 0 的问题。虽然 prefix cache 统计是通用概念，但具体的 /generate 路径与 OpenAI endpoint 路径分叉、以及 prefix_cache_info 的填充逻辑是该仓库特有的内部实现细节，其他框架不会以相同方式出现此问题。",
+      "analyzed_at": "2026-04-19T13:29:07.684364+00:00"
     },
     {
       "id": "radixark/miles#961",
@@ -124,9 +124,9 @@
       "url": "https://github.com/radixark/miles/pull/961",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "将FSDP后端移至experimental目录并默认禁用，同时更新CI配置和import路径",
-      "reason": "这是针对miles仓库特有的基础设施调整，涉及该项目的目录结构重组、命令行参数验证和CI矩阵配置，不涉及通用的算法或训练逻辑，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:40:08.096098+00:00"
+      "summary": "将 FSDP 后端移入 experimental 目录并默认禁用，同时从 CI 中移除大部分 FSDP 测试",
+      "reason": "此 PR 主要涉及该仓库特定的目录结构重组（移动 fsdp_utils 到 experimental/）、CI 配置调整以及版本发布流程，属于仓库内部的工程决策，不涉及 FSDP 算法本身的 bug 修复或通用功能改进，其他框架不会受此目录变更影响",
+      "analyzed_at": "2026-04-19T13:29:02.417095+00:00"
     },
     {
       "id": "radixark/miles#963",
@@ -140,9 +140,9 @@
       "url": "https://github.com/radixark/miles/pull/963",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "添加对DeepSeek V3.2模型的支持，包括模型配置、启动脚本和非交错索引器格式适配",
-      "reason": "该PR主要针对radixark/miles仓库对特定模型(DeepSeek V3.2)的适配工作，涉及该仓库特有的模型配置、启动脚本和参数补丁逻辑。虽然涉及GLM-5代码复用，但本质是针对该仓库特定模型集成的实现细节，而非通用算法或接口改进",
-      "analyzed_at": "2026-04-19T11:40:05.785841+00:00"
+      "summary": "为 miles 框架新增 DeepSeek V3.2 模型支持，复用 GLM-5 代码路径并适配其非交错式 indexer 格式、tokenizer patch 及 freeze-indexer 参数",
+      "reason": "该 PR 的核心工作是针对 DeepSeek V3.2 在 miles 仓库中的具体适配：复用该仓库特有的 GLM-5 代码路径、patch 仓库内部的 indexer_rope_interleave 参数、为该仓库的 tokenizer 打补丁以绕过 chat template 缺失问题，以及新增仓库专属的 --freeze-indexer 训练参数。这些改动均依赖 miles 仓库内部的特定架构和命名约定，其他框架不会以相同方式遇到或解决此问题，属于典型的 repo-specific 模型适配。",
+      "analyzed_at": "2026-04-19T13:28:58.117897+00:00"
     },
     {
       "id": "radixark/miles#964",
@@ -154,11 +154,11 @@
       "created_at": "2026-04-09T20:47:24Z",
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/964",
-      "category": "feature",
-      "scope": "repo-specific",
-      "summary": "更新P2P RDMA权重同步，增加flashinfer兼容性和网卡亲和性支持",
-      "reason": "该改动涉及Miles框架特有的P2P RDMA权重同步机制的优化，包括与flashinfer的集成和网卡亲和性配置，这些是该仓库特定的分布式训练实现细节，虽然可能对其他分布式框架有参考价值，但主要是针对Miles框架的特定优化",
-      "analyzed_at": "2026-04-19T11:40:02.909673+00:00"
+      "category": "infra",
+      "scope": "universal",
+      "summary": "更新 P2P RDMA 权重同步机制，增加 flashinfer 兼容性支持并引入 NIC 亲和性绑定，已在 RoCE 网络上经过 4 节点（Qwen3-30B-A3B）和 16 节点（Qwen3-235B-A22B）验证。",
+      "reason": "P2P RDMA 权重同步是 RL 训练框架中 actor 与 rollout 引擎之间的通用基础设施，添加 flashinfer 兼容性和 NIC 亲和性（NIC affinity）优化属于通用的权重同步机制改进，其他使用 RDMA/RoCE 进行跨节点权重同步的框架（如 verl、slime）同样面临相同的 flashinfer 兼容问题和网卡亲和性配置需求。",
+      "analyzed_at": "2026-04-19T13:28:51.370671+00:00"
     },
     {
       "id": "radixark/miles#965",
@@ -171,10 +171,10 @@
       "merged_at": "2026-04-09T22:21:02Z",
       "url": "https://github.com/radixark/miles/pull/965",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "改进日志记录的跳表配置和数值计算的鲁棒性，处理异步回滚产生的嵌套列表和非数值字段",
-      "reason": "这个PR针对的是miles仓库特有的log_rollout_data日志记录机制，涉及weight_versions、metadata等该仓库特定的字段处理逻辑，以及针对async rollout特殊场景的嵌套列表展平处理。虽然涉及容错改进，但改动围绕该仓库的特定数据结构和日志流程，不是通用的算法或接口优化",
-      "analyzed_at": "2026-04-19T11:40:00.679591+00:00"
+      "scope": "universal",
+      "summary": "在 log_rollout_data 中添加字段跳过列表以过滤非指标字段，并增强对嵌套列表的展平处理和非数值值的容错，修复 async rollout 场景下的日志记录崩溃问题。",
+      "reason": "日志记录中跳过非数值字段、处理嵌套列表（async rollout 产生的数据结构）、避免 crash 这类问题在所有使用 async rollout 的 RL 训练框架中都会遇到，属于通用的 rollout 数据处理与日志健壮性问题，并非 miles 仓库特有逻辑。",
+      "analyzed_at": "2026-04-19T13:28:46.120530+00:00"
     },
     {
       "id": "radixark/miles#966",
@@ -188,9 +188,9 @@
       "url": "https://github.com/radixark/miles/pull/966",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复了在仅启用debug rollout时，sglang权重版本默认值为字符串而非数值导致的e2e测试失败问题",
-      "reason": "这个修复涉及miles仓库与sglang库的集成细节。问题源于sglang库的默认行为（权重版本默认为字符串\"default\"），而miles在特定配置场景下需要处理这个不匹配。虽然根本问题来自sglang库，但修复方案是miles仓库的特有实现细节，不具有通用性",
-      "analyzed_at": "2026-04-19T11:39:57.840516+00:00"
+      "summary": "修复 sglang 权重版本号为非数值类型（默认值为字符串 'default'）导致 CI 测试失败的问题",
+      "reason": "该修复针对的是该仓库 CI 流程中 debug rollout 模式下未显式设置权重版本号时的特定问题，属于仓库自身 CI 配置与测试流程的修复，而非通用 rollout 或权重同步逻辑的 bug，其他框架不一定使用相同的 CI 测试路径或 sglang 版本管理方式",
+      "analyzed_at": "2026-04-19T13:28:40.262904+00:00"
     },
     {
       "id": "radixark/miles#967",
@@ -203,10 +203,10 @@
       "merged_at": "2026-04-10T06:19:09Z",
       "url": "https://github.com/radixark/miles/pull/967",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复debug rollout仅在weight版本检查中的问题",
-      "reason": "这是针对miles项目特有的debug rollout机制的修复，涉及该仓库特定的weight版本检查逻辑和实现细节，不是通用的算法或接口改动",
-      "analyzed_at": "2026-04-19T11:39:54.982589+00:00"
+      "scope": "universal",
+      "summary": "修复仅在权重版本检查时才进行 debug rollout 的小问题",
+      "reason": "权重同步与版本检查是所有 RL 训练框架（如 rollout 引擎与 trainer 之间的权重同步流程）中的通用基础设施逻辑，该 bug 修复适用于所有使用类似权重版本校验机制的框架",
+      "analyzed_at": "2026-04-19T13:28:35.594865+00:00"
     },
     {
       "id": "radixark/miles#968",
@@ -218,11 +218,11 @@
       "created_at": "2026-04-10T05:52:21Z",
       "merged_at": "2026-04-10T05:53:43Z",
       "url": "https://github.com/radixark/miles/pull/968",
-      "category": "feature",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "为 GLM-4.7 Full 模型添加两个训练启动器脚本，支持智能体训练和推理训练模式",
-      "reason": "该 PR 添加的是针对特定模型（GLM-4.7 Full）和特定硬件配置（16x8 H200 节点）的启动器脚本，包含该仓库特有的训练并行策略配置（TP=4, PP=2, EP=16 等）和数据集集成（SWE agent、GSM8K），这些改动对其他仓库的价值有限，属于该仓库专有的实现细节",
-      "analyzed_at": "2026-04-19T11:39:53.095174+00:00"
+      "summary": "为 GLM-4.7 Full（355B-A32B）模型添加 agentic 训练和 reasoning 训练两个启动脚本，支持 16x8 H200 节点配置",
+      "reason": "该 PR 仅添加了针对 GLM-4.7 特定模型和 miles 仓库内部集群（sci-h200、shidong-glm47-full）的启动脚本，包含该仓库特有的 SWE agent 接入方式、内部节点命名和硬件配置，不涉及通用算法或训练基础设施改动，对其他框架无参考复用价值。",
+      "analyzed_at": "2026-04-19T13:28:31.407766+00:00"
     },
     {
       "id": "radixark/miles#971",
@@ -236,9 +236,9 @@
       "url": "https://github.com/radixark/miles/pull/971",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "从LoRA示例中移除用于确定性推理的环境变量配置，以改善训练性能",
-      "reason": "这个改动涉及的是该仓库LoRA示例配置的具体实现细节。移除的环境变量（CUBLAS_WORKSPACE_CONFIG、NVTE_ALLOW_NONDETERMINISTIC_ALGO、NCCL_ALGO）是针对该项目示例代码的特定配置，不涉及通用的算法或训练逻辑改动，其他类似库的LoRA实现不一定会采用相同的配置方式",
-      "analyzed_at": "2026-04-19T11:39:50.430392+00:00"
+      "summary": "移除 LoRA 示例配置中用于确定性推理的环境变量，避免不必要的性能损耗",
+      "reason": "此 PR 修改的是该仓库 LoRA 示例的特定配置文件，涉及的环境变量（CUBLAS_WORKSPACE_CONFIG、NVTE_ALLOW_NONDETERMINISTIC_ALGO、NCCL_ALGO）本身虽具通用性，但此次改动仅针对该仓库示例脚本的配置清理，属于仓库内部示例/文档层面的整理，不涉及通用训练逻辑或算法改动，因此归为 repo-specific",
+      "analyzed_at": "2026-04-19T13:28:25.346046+00:00"
     },
     {
       "id": "radixark/miles#972",
@@ -251,10 +251,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/972",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复当num_kv_heads < tensor_parallel_size时，attention_output_gate在TP切片时的形状不匹配问题",
-      "reason": "这是针对Megatron框架在特定配置下的具体实现bug修复，涉及该仓库对Qwen模型的张量并行处理细节，属于repo-specific的优化和修复",
-      "analyzed_at": "2026-04-19T11:39:47.643646+00:00"
+      "scope": "universal",
+      "summary": "修复 Megatron SelfAttention 中当 num_kv_heads < TP size 时，gate 张量未按与 query 相同方式进行 TP 切片导致 shape 不匹配的问题",
+      "reason": "该 bug 存在于 Megatron 的 SelfAttention 实现中，当 num_kv_heads < tensor_parallel_size 时，TP 切片逻辑未正确应用于 gate 张量。任何使用 Megatron 并行后端并启用 attention_output_gate（如 Qwen3 系列模型）的框架都会遇到相同问题，属于 Megatron TP 并行的通用 bug，不限于该仓库。",
+      "analyzed_at": "2026-04-19T13:28:20.943739+00:00"
     },
     {
       "id": "radixark/miles#973",
@@ -268,9 +268,9 @@
       "url": "https://github.com/radixark/miles/pull/973",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "将 AMD GPU 支持升级到 sglv0.5.10 版本，并更新相应的 Docker 镜像",
-      "reason": "这是针对 miles 仓库特有的 AMD GPU 环境配置和依赖升级，涉及该仓库特定的 Docker 镜像构建和 AMD 驱动版本管理，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:39:44.239095+00:00"
+      "summary": "为 AMD MI350/MI355 硬件将 SGLang 升级至 v0.5.10 并更新对应 Docker 镜像",
+      "reason": "此 PR 专门针对 AMD MI350/MI355 硬件升级 SGLang 到 v0.5.10 版本，并更新了对应的 Docker 镜像，属于特定硬件构建脚本和版本号 bump，仅对使用 AMD GPU 的该仓库部署环境有意义，其他框架不会直接受益于此改动。",
+      "analyzed_at": "2026-04-19T13:28:16.491929+00:00"
     },
     {
       "id": "radixark/miles#974",
@@ -283,10 +283,10 @@
       "merged_at": "2026-04-15T18:51:25Z",
       "url": "https://github.com/radixark/miles/pull/974",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复fully async模式下in_place暂停生成时flush_cache导致的死锁问题，并添加Qwen3-30B-A3B fully async训练示例",
-      "reason": "该修复针对Miles框架特有的pause_generation模式和in_place机制，涉及该仓库的具体实现细节和配置方式，不是通用的算法或训练逻辑改动",
-      "analyzed_at": "2026-04-19T11:39:41.353252+00:00"
+      "scope": "universal",
+      "summary": "修复 in_place 暂停模式下 flush_cache 调用导致训练挂起的问题，并新增 Qwen3-30B-A3B 全异步训练示例脚本",
+      "reason": "flush_cache 在 in_place 暂停模式下挂起的问题，根因是异步 rollout 引擎在暂停时等待队列仍有请求导致永远无法进入 idle 状态，这一逻辑适用于所有使用类似 vLLM/SGLang 引擎 + 异步 rollout + pause_generation 机制的 RL 训练框架（如 slime、verl 等），属于通用的 rollout 引擎生命周期管理 bug。",
+      "analyzed_at": "2026-04-19T13:28:10.383373+00:00"
     },
     {
       "id": "radixark/miles#975",
@@ -299,10 +299,10 @@
       "merged_at": "2026-04-14T20:08:33Z",
       "url": "https://github.com/radixark/miles/pull/975",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复Qwen3.5的A_log参数在Megatron Float16Module转换中被错误降低精度的问题，确保FP32参数在转换过程中保持原精度",
-      "reason": "该修复针对radixark/miles仓库与Megatron-LM的集成过程中的特定问题，涉及该仓库特有的权重转换流程（hf→mcore conversion）和Megatron框架的Float16Module包装细节。虽然涉及通用的精度保留问题，但修复方案针对该仓库特定的集成方式和Qwen模型的特殊需求，不具有跨库通用性",
-      "analyzed_at": "2026-04-19T11:39:39.123810+00:00"
+      "scope": "universal",
+      "summary": "修复 Megatron Float16Module 在封装时将 fp32 参数强制转换为 bf16 的问题，确保 Qwen3.5 等模型的 A_log 等必须保持 fp32 的参数在 hf→mcore 转换及训练过程中不被错误降精度",
+      "reason": "该问题根源在于 Megatron-LM 的 Float16Module 构造函数会对所有参数执行 bfloat16() 强制转换，任何使用 Megatron 并行后端且包含需要保留 fp32 精度参数的模型（不限于 Qwen3.5）都会遇到相同问题；PR 实现了绕过该强制转换的通用逻辑，适用于所有基于 Megatron 的 RL 训练框架",
+      "analyzed_at": "2026-04-19T13:28:05.680711+00:00"
     },
     {
       "id": "radixark/miles#976",
@@ -316,9 +316,9 @@
       "url": "https://github.com/radixark/miles/pull/976",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复权重转移P2P示例中Kimi和GLM5模型的兼容性问题，通过CPU分配副本模型并跳过GPU依赖的后处理步骤",
-      "reason": "该PR针对radixark/miles仓库特有的权重转移(weight transfer)实现细节进行修复，包括CPU/GPU资源分配策略和DeepSeek MLA模型的特殊处理逻辑，这些都是该仓库特定的集成需求，其他相似库的实现方式可能不同",
-      "analyzed_at": "2026-04-19T11:39:36.199002+00:00"
+      "summary": "修复权重P2P传输流程，使Kimi和GLM5模型可用：将副本模型直接分配在CPU上，并强制跳过针对DeepSeek MLA模型的GPU依赖重量化后处理步骤",
+      "reason": "该PR针对GLM5、Kimi等特定模型的适配问题，以及DeepSeek MLA架构专属的post_weight_load重量化流程进行修复，属于该仓库对特定模型的专属适配patch，而非通用权重同步机制的改动",
+      "analyzed_at": "2026-04-19T13:28:00.312867+00:00"
     },
     {
       "id": "radixark/miles#977",
@@ -332,9 +332,9 @@
       "url": "https://github.com/radixark/miles/pull/977",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "为 NVIDIA B300 GPU (sm_103a) 添加 Docker 容器支持，包括构建优化和 PTX 后备方案",
-      "reason": "这是针对 miles 仓库特有的 Docker 构建配置和 NVIDIA B300 硬件的集成，涉及该仓库特定的 Dockerfile、内核编译流程和量化工具链配置，不是通用的算法或接口改动",
-      "analyzed_at": "2026-04-19T11:39:33.256575+00:00"
+      "summary": "为 B300（Blackwell x86，sm_103a）架构添加 Docker 容器支持，包括 CUDA 13 基础镜像、FA2/apex 源码构建、TE 升级及 PTX fallback 适配",
+      "reason": "该 PR 主要涉及特定硬件（B300/sm_103a）的 Docker 构建脚本和编译配置，属于该仓库特有的基础设施搭建，其他框架不会直接复用这些 Dockerfile 和硬件专属 gencode 配置，因此判定为 repo-specific",
+      "analyzed_at": "2026-04-19T13:27:56.147568+00:00"
     },
     {
       "id": "radixark/miles#980",
@@ -347,10 +347,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/980",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复多智能体示例中因重复加载tokenizer和深拷贝args导致的GPU空闲卡死问题",
-      "reason": "这是针对radixark/miles仓库的多智能体示例的特定性能问题修复。虽然涉及tokenizer缓存和copy优化的技术通用，但问题出现在该仓库特有的多智能体rollout实现中，且修复针对examples/multi_agent/目录下的特定脚本，因此属于repo-specific",
-      "analyzed_at": "2026-04-19T11:39:30.757609+00:00"
+      "scope": "universal",
+      "summary": "修复 multi-agent rollout 因每次采样重复 load_tokenizer 和 deepcopy(args) 导致 GIL 阻塞事件循环、生成卡在 0/256 的 bug，改为模块级缓存 tokenizer 并用 copy.copy 替换 deepcopy",
+      "reason": "该 PR 修复的是 multi-agent rollout 中因每次采样都调用 load_tokenizer 以及 deepcopy(args) 导致 GIL 阻塞事件循环、进而使生成卡死的问题。将 tokenizer 缓存到模块级别、用 copy.copy 替换 deepcopy 是通用的 Python 异步/并发编程最佳实践，任何使用类似 per-sample tokenizer 加载或深拷贝大型对象模式的 RL 训练框架（如 slime、其他基于 vLLM 的 rollout 引擎）都可能遇到相同问题，修复思路完全可移植。",
+      "analyzed_at": "2026-04-19T13:27:52.250984+00:00"
     },
     {
       "id": "radixark/miles#982",
@@ -364,9 +364,9 @@
       "url": "https://github.com/radixark/miles/pull/982",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "移除通用的任务准备脚本，改用harbor-private中特定数据集的专用适配器处理任务准备",
-      "reason": "这个改动涉及的是radixark/miles仓库特有的任务准备流程和工具链集成，是将任务准备职责从通用脚本迁移到特定适配器的内部重构，不涉及通用算法或接口变化，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:39:27.691693+00:00"
+      "summary": "移除 prepare_harbor_tasks.py，改由 harbor-private 专用适配器处理任务准备，并更新相关文档",
+      "reason": "此 PR 涉及 miles 仓库特有的 swe-agent-v2 实验性功能及其内部工具链（harbor-private 适配器、Harbor 任务目录格式），与通用 RL 训练框架的核心组件（rollout、PPO、权重同步等）无关，属于该仓库特有的内部工具重构和文档更新",
+      "analyzed_at": "2026-04-19T13:27:45.245482+00:00"
     },
     {
       "id": "radixark/miles#984",
@@ -380,9 +380,9 @@
       "url": "https://github.com/radixark/miles/pull/984",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "更新B300机器的Qwen3.5脚本配置",
-      "reason": "PR标题明确指向特定硬件(B300)和特定模型(qwen35)的脚本更新，属于该仓库特有的基础设施配置和部署脚本调整，不涉及通用算法或接口改动",
-      "analyzed_at": "2026-04-19T11:39:25.193519+00:00"
+      "summary": "更新 Qwen3.5 在 B300 硬件上的训练脚本配置",
+      "reason": "PR 针对特定硬件（B300）和特定模型（Qwen3.5）的脚本更新，属于该仓库特有的硬件适配与模型专属配置，不具备跨框架通用性",
+      "analyzed_at": "2026-04-19T13:27:39.878276+00:00"
     },
     {
       "id": "radixark/miles#985",
@@ -395,10 +395,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/985",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复了当样本为列表时的评估样本日志记录功能",
-      "reason": "这是针对 radixark/miles 仓库中特定的日志记录实现的 bug 修复，涉及该仓库的具体样本处理逻辑，修复内容针对该项目的特定场景，其他库虽然可能有类似代码但不一定会遇到同样问题",
-      "analyzed_at": "2026-04-19T11:39:22.168670+00:00"
+      "scope": "universal",
+      "summary": "修复 eval 阶段当 sample 为列表类型时日志记录出错的问题",
+      "reason": "eval 阶段对 sample 进行日志记录时，sample 可能是列表类型而未被正确处理，这类问题在所有使用类似 rollout/eval 循环的 RL 训练框架中都可能出现，属于通用的采样日志处理逻辑缺陷。",
+      "analyzed_at": "2026-04-19T13:27:36.236549+00:00"
     },
     {
       "id": "radixark/miles#986",
@@ -410,11 +410,11 @@
       "created_at": "2026-04-15T23:06:23Z",
       "merged_at": "2026-04-16T02:00:04Z",
       "url": "https://github.com/radixark/miles/pull/986",
-      "category": "feature",
+      "category": "doc",
       "scope": "repo-specific",
-      "summary": "为GLM47模型添加完整的异步和同步推理命令支持",
-      "reason": "该改动是针对radixark/miles仓库中GLM47模型的具体实现增强，涉及该仓库特有的模型命令集成和配置逻辑，其他仓库不直接受益",
-      "analyzed_at": "2026-04-19T11:39:19.945729+00:00"
+      "summary": "添加 GLM47 模型在异步和同步推理模式下的完整运行命令示例",
+      "reason": "GLM47 是该仓库特定支持的模型，添加其完整命令行示例属于仓库特有的模型适配文档，不具备跨框架的通用性",
+      "analyzed_at": "2026-04-19T13:27:32.654420+00:00"
     },
     {
       "id": "radixark/miles#987",
@@ -426,11 +426,11 @@
       "created_at": "2026-04-16T01:38:31Z",
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/987",
-      "category": "feature",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "添加 GPU 亲和性 InfiniBand 设备绑定功能，通过 --update-weight-p2p-ib-device 标志支持多 NIC 节点上的 RDMA 权重转移优化",
-      "reason": "该功能针对 radixark/miles 项目的特定配置需求，涉及与 Mooncake TransferEngine 和 sglang rollout 组件的集成，以及项目特定的参数传递机制，不具有通用性",
-      "analyzed_at": "2026-04-19T11:39:17.916830+00:00"
+      "summary": "新增 --update-weight-p2p-ib-device 参数，支持多网卡节点上为每个 GPU 指定 InfiniBand 设备，提升 P2P RDMA 权重传输吞吐",
+      "reason": "该 PR 涉及权重同步基础设施，虽然权重同步本身是通用概念，但具体实现深度绑定了 miles 仓库自有的 Mooncake TransferEngine 与 sglang rollout 侧的 mooncake_ib_device 接口，属于该仓库特有的传输引擎集成与参数透传机制，其他框架不使用同一套 Mooncake 传输层，因此归为 repo-specific",
+      "analyzed_at": "2026-04-19T13:27:29.737907+00:00"
     },
     {
       "id": "radixark/miles#988",
@@ -443,10 +443,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/988",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为分散模型支持LoRA微调训练",
-      "reason": "这是针对radixark/miles仓库中分散模型场景的特定功能扩展。虽然LoRA是通用算法，但该PR针对的是该仓库特有的分散模型架构的适配实现，包括分散模型下的LoRA适配器加载等repo特定的集成细节。",
-      "analyzed_at": "2026-04-19T11:39:15.678028+00:00"
+      "scope": "universal",
+      "summary": "在 disaggregate（rollout 与 trainer 分离）模式下支持 LoRA 训练，包括 LoRA 权重的加载、同步与管理。",
+      "reason": "LoRA 训练支持是通用训练基础设施改动，disaggregate 模式下的 LoRA 适配（权重同步、参数管理）是所有使用类似 rollout/trainer 分离架构的 RL 训练框架都会面临的共性问题，不依赖该仓库特有的模型或硬件配置。",
+      "analyzed_at": "2026-04-19T13:27:24.733027+00:00"
     },
     {
       "id": "radixark/miles#989",
@@ -459,10 +459,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/989",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复零标准差指标聚合中对None奖励值的round()调用导致的类型错误",
-      "reason": "这是针对miles仓库RolloutManager.generate()方法中的具体实现bug修复，涉及该仓库特有的rollout管理逻辑和奖励值处理细节，不是通用算法问题",
-      "analyzed_at": "2026-04-19T11:39:13.109394+00:00"
+      "scope": "universal",
+      "summary": "修复 rollout 指标聚合时对 None 奖励值调用 round() 导致的 TypeError 崩溃",
+      "reason": "在 rollout 收集阶段对零标准差分组的奖励值进行日志聚合时，ABORTED 状态样本的 reward 为 None，直接调用 round() 会抛出 TypeError 导致整个训练批次丢失。这类 None 奖励值的防护处理是 RL 训练框架中 rollout 日志统计的通用问题，任何使用类似 zero-std 指标聚合逻辑的框架（如 slime 等）都可能遇到相同的 bug，不依赖该仓库的特定实现细节。",
+      "analyzed_at": "2026-04-19T13:27:20.505186+00:00"
     },
     {
       "id": "radixark/miles#990",
@@ -474,11 +474,11 @@
       "created_at": "2026-04-16T14:40:49Z",
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/990",
-      "category": "feature",
+      "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "允许在 miles-router 路径上的 /add_worker 注册端点支持 PD worker_type，解除对 prefill/decode 节点的限制。",
-      "reason": "这个改动涉及 SGLangEngine 与 miles-router 的特定集成逻辑，是针对该仓库中 PD disaggregation 工作流的特有优化，其他仓库的相似实现方式可能不同，不具有通用性。",
-      "analyzed_at": "2026-04-19T11:39:10.985097+00:00"
+      "summary": "移除 SGLangEngine._init_normal 中对 worker_type 必须为 'regular' 的断言，允许 PD disaggregation 的 prefill/decode worker 通过 miles-router 路径注册",
+      "reason": "该修改针对 miles 仓库自有的 SGLangEngine 与 miles-router 的集成逻辑，涉及仓库内部专属的路由器注册路径（/add_worker）和 miles_router 配置，不是通用 rollout 引擎或 RL 算法层面的改动，其他框架不共享这套 miles-router 调度机制",
+      "analyzed_at": "2026-04-19T13:27:15.094295+00:00"
     },
     {
       "id": "radixark/miles#991",
@@ -491,10 +491,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/991",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复Ray远程actors中PYTHONPATH未正确传播导致import解析错误的问题",
-      "reason": "这是针对radixark/miles仓库特有的Ray分布式执行配置问题。涉及该项目特定的RolloutRayActor、SGLangEngine和MILES_OVERRIDE等内部实现细节，不是通用的算法或接口改动，其他仓库需要根据自身Ray配置方式独立处理",
-      "analyzed_at": "2026-04-19T11:39:08.547725+00:00"
+      "scope": "universal",
+      "summary": "修复 SGLang rollout Ray actor 未继承 PYTHONPATH 环境变量导致 actor 内 import 路径与 driver 不一致的问题",
+      "reason": "凡是使用 Ray 远程 actor 启动 rollout 引擎的框架（如 verl、openrlhf、slime 等），都会面临 Ray actor 环境变量隔离导致 PYTHONPATH 丢失的问题，与具体仓库无关，属于通用的 Ray 部署 + 可编辑安装场景下的 infra bug",
+      "analyzed_at": "2026-04-19T13:27:10.537041+00:00"
     },
     {
       "id": "radixark/miles#992",
@@ -507,10 +507,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/992",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复在DDP包装前强制执行参数数据类型转换，解决训练和推理间的logprob差异问题",
-      "reason": "这是针对该仓库特定的Megatron-LM集成中，DDP模型构建流程的时序问题修复。涉及miles/backends/megatron_utils/model.py的具体实现逻辑和convert_hf_to_torch_dist.py的数据类型转换时机，属于该仓库特有的集成细节而非通用算法改动",
-      "analyzed_at": "2026-04-19T11:39:05.966635+00:00"
+      "scope": "universal",
+      "summary": "修复在 wrap_with_ddp=True 场景下 fp32 参数强制转换时机错误导致训练与推理 logprob 在首个 step 后出现异常跳变的 bug",
+      "reason": "该 PR 修复的是在使用 Megatron + DDP 训练时，fp32 参数强制转换时机不正确导致的 logprob 数值偏差问题。具体而言，当 wrap_with_ddp=True 时，DDP 在 get_model() 内部构建，若在 get_model() 返回后才做 dtype 强制转换则已错过时机。这是所有使用 Megatron + DDP 组合训练框架（如 slime、verl 等）都可能遇到的通用问题，与仓库特有的模型或脚本无关。",
+      "analyzed_at": "2026-04-19T13:27:06.142162+00:00"
     },
     {
       "id": "radixark/miles#993",
@@ -523,10 +523,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/993",
       "category": "refactor",
-      "scope": "repo-specific",
-      "summary": "将on-policy蒸馏(OPD)从优势估计器中解耦，改造为可独立配置的KL惩罚项，并新增Megatron教师模式支持",
-      "reason": "这是针对miles仓库特定的架构重构。虽然涉及OPD算法逻辑，但改动主要是该仓库的实现细节和配置机制（advantage_estimator选择、--use-opd和--opd-type参数等），其他库可能有不同的OPD集成方式，因此属于repo-specific的内部重构",
-      "analyzed_at": "2026-04-19T11:39:03.217063+00:00"
+      "scope": "universal",
+      "summary": "将在线策略蒸馏（OPD）从独立的advantage estimator重构为可叠加的KL惩罚项，并新增基于Megatron的teacher模式，使其与任意advantage估计器正交组合。",
+      "reason": "OPD（在线策略蒸馏）作为KL惩罚项与advantage estimator解耦的设计思路、Megatron teacher模式的接入方式、以及KL散度作为正则项叠加在GRPO/PPO等算法之上的架构模式，属于RL训练中通用的算法组合与蒸馏框架设计，其他使用相同组件（Megatron、PPO/GRPO、KL惩罚）的框架同样会面临类似的设计决策。",
+      "analyzed_at": "2026-04-19T13:27:00.790603+00:00"
     },
     {
       "id": "radixark/miles#994",
@@ -540,9 +540,9 @@
       "url": "https://github.com/radixark/miles/pull/994",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "将在线策略蒸馏（OPD）从示例代码移至miles/rollout模块，并补充CI测试和文档",
-      "reason": "这个PR涉及的是radixark/miles仓库特有的代码组织结构调整、CI流程改进和文档完善，包括模块路径重组、仓库内shell脚本更新、特定模型测试用例等，这些改动主要是为了改进该仓库的代码质量和可用性，不涉及通用的算法改进或跨仓库适用的接口设计",
-      "analyzed_at": "2026-04-19T11:38:59.843730+00:00"
+      "summary": "将 on-policy distillation 模块从 examples/ 迁移到 miles/rollout/ 作为一等组件，并补充 CI 测试和文档",
+      "reason": "此 PR 主要是针对 miles 仓库自身目录结构的重组（将 OPD 脚本提升为 rollout 一等组件），涉及该仓库特有的模块路径、CI 配置和文档结构调整，不涉及通用算法或训练基础设施的改动，对其他框架无参考价值。",
+      "analyzed_at": "2026-04-19T13:26:55.380712+00:00"
     },
     {
       "id": "radixark/miles#995",
@@ -555,10 +555,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/995",
       "category": "doc",
-      "scope": "repo-specific",
-      "summary": "更新 generate_rollout 函数的文档字符串以匹配其实际函数签名",
-      "reason": "这是针对 radixark/miles 仓库中特定函数的文档修正，属于该仓库的实现细节调整，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:38:56.882864+00:00"
+      "scope": "universal",
+      "summary": "修复 generate_rollout 函数的文档注释，使其与实际函数签名保持一致",
+      "reason": "更新函数签名文档注释（docstring）是通用性的文档维护工作，任何使用 generate_rollout 类似接口的框架都可能遇到文档与实际签名不一致的问题，与仓库特有实现无关。",
+      "analyzed_at": "2026-04-19T13:26:50.533657+00:00"
     },
     {
       "id": "radixark/miles#996",
@@ -572,9 +572,9 @@
       "url": "https://github.com/radixark/miles/pull/996",
       "category": "doc",
       "scope": "repo-specific",
-      "summary": "重新定位 miles 项目并刷新文档索引，移除过时声明、补充模型列表、调整文档结构",
-      "reason": "该 PR 的改动主要涉及 miles 项目特有的文档结构、声明内容和索引组织，包括移除框架特定的营销声明、补充该项目支持的模型列表、调整 TOC 中的文档链接等，这些改动对其他相似库没有直接适用价值，属于项目特定的文档维护工作",
-      "analyzed_at": "2026-04-19T11:38:54.622757+00:00"
+      "summary": "重新定位 miles 项目描述，更新索引文档，添加新文档链接并移除失效引用",
+      "reason": "此 PR 纯粹是对 miles 仓库自身文档的整理：移除该仓库特有的 'GLM-X 背后的 RL 框架' 定位声明、添加仓库专属的文档页面（gen_endpoint.md、oai_endpoint.md 等）到目录、清理仓库特定的失效路径引用，所有改动均与该仓库的特定命名、目录结构和品牌定位相关，对其他框架无复用价值。",
+      "analyzed_at": "2026-04-19T13:26:46.680129+00:00"
     },
     {
       "id": "radixark/miles#997",
@@ -588,9 +588,9 @@
       "url": "https://github.com/radixark/miles/pull/997",
       "category": "doc",
       "scope": "repo-specific",
-      "summary": "更新多个文档，推荐使用 Python 脚本替代遗留的 Shell 脚本来运行示例",
-      "reason": "这些改动涉及该仓库特有的文档、脚本命名约定和使用说明，不涉及通用算法或接口，只对 miles 仓库的用户体验有直接帮助",
-      "analyzed_at": "2026-04-19T11:38:50.821066+00:00"
+      "summary": "将文档中推荐的启动方式从旧版 .sh 脚本改为 .py 脚本，并补充各示例文档中的 Python 脚本用法说明",
+      "reason": "该 PR 纯属文档更新，涉及的 .py 脚本文件名（如 run_qwen3_30b_a3b.py、run_deepseek.py、run_glm47_flash.py）均为 miles 仓库特有的启动脚本，以及该仓库自身的目录结构和示例文档体系，对其他框架无参考意义，属于仓库特有的文档维护工作",
+      "analyzed_at": "2026-04-19T13:26:41.576439+00:00"
     },
     {
       "id": "radixark/miles#998",
@@ -604,9 +604,9 @@
       "url": "https://github.com/radixark/miles/pull/998",
       "category": "doc",
       "scope": "repo-specific",
-      "summary": "修复文档中的API签名和示例代码以匹配当前实现，包括类名、函数参数和返回类型的更新",
-      "reason": "这个PR主要是更新该仓库特定的文档示例和API说明，使其与当前代码实现保持一致。改动涉及的是Miles框架特有的类名（SGLangEngine）、函数签名（generate_rollout、check_reward_nonzero_std）和示例脚本命名，这些是该仓库特定的实现细节，其他库无法直接受益",
-      "analyzed_at": "2026-04-19T11:38:48.402974+00:00"
+      "summary": "修正usage.md、customization.md、quick_start.md等文档中过时的API签名，使其与当前代码实现保持一致",
+      "reason": "该PR修正的是miles仓库自身文档中的API签名错误，包括类名重命名（HttpServerEngineAdapter→SGLangEngine）、文件名变更（sglang_example.py→sglang_rollout.py）、函数签名更新（参数名和返回类型）等，这些都是该仓库内部API演进导致的文档不同步问题，与其他框架无关。",
+      "analyzed_at": "2026-04-19T13:26:36.788240+00:00"
     },
     {
       "id": "radixark/miles#999",
@@ -620,9 +620,9 @@
       "url": "https://github.com/radixark/miles/pull/999",
       "category": "doc",
       "scope": "repo-specific",
-      "summary": "修复文档中的多个拼写错误、过时默认值和路径问题，使文档与最新代码保持一致",
-      "reason": "这些改动涉及该仓库特有的文档、配置默认值和示例脚本路径，属于项目维护性工作，不涉及通用算法或可被其他库共用的接口改进",
-      "analyzed_at": "2026-04-19T11:38:45.890925+00:00"
+      "summary": "修复 miles 文档中的多处拼写错误、过时默认值和路径错误",
+      "reason": "所有改动均针对 miles 仓库自身的文档文件（usage.md、各示例 md、fault-tolerance.md），包括该仓库特有的参数名、脚本路径、模型示例（qwen3-4B、glm4-9B、glm4.5-355B）及内部默认配置，与其他框架的通用组件无关，属于仓库特定的文档维护工作。",
+      "analyzed_at": "2026-04-19T13:26:32.618271+00:00"
     },
     {
       "id": "radixark/miles#1000",
@@ -634,11 +634,11 @@
       "created_at": "2026-04-17T17:22:54Z",
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/1000",
-      "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为离策检测添加有效样本量(ESS)比率监控指标，用于在训练过程中追踪策略与采样策略的偏离程度",
-      "reason": "ESS ratio监控是针对该仓库PPO训练流程的具体实现细节，涉及该项目特有的指标报告和日志集成(如wandb)，不涉及通用的算法改进或接口变更",
-      "analyzed_at": "2026-04-19T11:38:42.705893+00:00"
+      "category": "algo",
+      "scope": "universal",
+      "summary": "为离策略检测添加 ESS（有效样本量）比率监控指标，基于重要性采样权重计算并在训练日志中上报",
+      "reason": "ESS ratio 是基于 PPO 重要性采样理论（π_new/π_old）的通用离策略检测指标，任何使用 PPO/GRPO 等 on-policy RL 算法的训练框架都面临策略漂移问题，该指标的计算方式与具体框架实现无关，属于通用 RL 算法监控手段",
+      "analyzed_at": "2026-04-19T13:26:28.494225+00:00"
     },
     {
       "id": "radixark/miles#1001",
@@ -652,9 +652,9 @@
       "url": "https://github.com/radixark/miles/pull/1001",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复SessionServer代理响应时移除旧的逐跳首部，避免Content-Length等头部与实际响应体长度不匹配导致客户端解析错误",
-      "reason": "这个修复针对miles仓库特有的SessionServer实现中的代理响应转发逻辑，涉及该项目具体的HTTP响应处理方式和Starlette集成细节，其他仓库虽然可能遇到类似问题但解决方案会因架构差异而不同",
-      "analyzed_at": "2026-04-19T11:38:40.006179+00:00"
+      "summary": "修复 SessionServer 代理响应时透传上游 hop-by-hop 请求头（如 content-length、transfer-encoding）导致客户端协议错误的问题",
+      "reason": "该修复针对 miles 仓库特有的 SessionServer/session_server.py 及其 build_proxy_response 方法，属于该仓库自己的 rollout session 代理层实现细节，其他框架不共享这一组件或路由架构，因此为 repo-specific",
+      "analyzed_at": "2026-04-19T13:26:24.575411+00:00"
     },
     {
       "id": "radixark/miles#1003",
@@ -667,10 +667,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/1003",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "为 all_to_all_single 添加诊断包装器，在 R3 回放时捕获和记录 split-size 不匹配的详细上下文信息",
-      "reason": "这是针对 radixark/miles 仓库特定的 R3（Replay）机制的诊断工具，通过可选的环境变量启用，记录的是该仓库特有的分布式张量通信细节，其他库不太可能直接受益",
-      "analyzed_at": "2026-04-19T11:38:36.466203+00:00"
+      "scope": "universal",
+      "summary": "为 dist.all_to_all_single 添加可选诊断包装器，在 split size 不匹配崩溃时记录每个 rank 的详细上下文信息",
+      "reason": "all_to_all_single 的 split size 不匹配问题是分布式训练中的通用问题，任何使用 PyTorch 分布式通信（如 Megatron、FSDP）的框架都可能遇到此类 RuntimeError，诊断包装器的思路和实现方式对其他框架同样适用",
+      "analyzed_at": "2026-04-19T13:26:20.314900+00:00"
     },
     {
       "id": "radixark/miles#1004",
@@ -684,9 +684,9 @@
       "url": "https://github.com/radixark/miles/pull/1004",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复SessionServer在代理响应时移除过时的逐跳头部，防止Content-Length与实际传输内容不匹配",
-      "reason": "这是针对miles仓库SessionServer实现的具体bug修复，涉及该项目特有的会话服务器响应代理逻辑和Starlette框架集成细节，其他仓库虽然可能有类似场景，但这是该项目特定的实现问题",
-      "analyzed_at": "2026-04-19T11:38:33.953103+00:00"
+      "summary": "修复 SessionServer 在转发代理响应时透传 hop-by-hop 头部（content-length、transfer-encoding 等）导致客户端帧错误的问题",
+      "reason": "该修复针对 miles 仓库特有的 SessionServer/session_server.py 组件，属于该仓库自己的 rollout session 代理服务器实现，其他 RL 训练框架不共享这一 HTTP 代理层架构，属于仓库内部工具的修复",
+      "analyzed_at": "2026-04-19T13:26:15.593355+00:00"
     },
     {
       "id": "radixark/miles#1005",
@@ -699,10 +699,10 @@
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/1005",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复异步训练模式中eval和save的触发时机，改为基于权重更新次数而非rollout次数",
-      "reason": "这是针对miles仓库中train_async.py的具体实现问题的修复。虽然涉及训练循环逻辑，但修复的是该仓库异步训练的特定机制（权重更新间隔与eval/save不同步的问题），这个问题和解决方案都特定于该仓库的架构设计，其他项目不一定存在相同的问题",
-      "analyzed_at": "2026-04-19T11:38:31.407061+00:00"
+      "scope": "universal",
+      "summary": "在异步训练模式下，将 eval 和 checkpoint 保存的触发条件从 rollout_id 改为 weight_update_count，避免同一模型权重被重复评估和保存",
+      "reason": "异步/全异步训练中 rollout 频率与权重更新频率不一致导致的重复 eval/save 问题，是所有采用异步 rollout 与延迟权重更新机制的 RL 训练框架（如 verl、openrlhf 等）都会面临的通用问题，修复逻辑属于训练循环中的通用基础设施改动",
+      "analyzed_at": "2026-04-19T13:26:11.678625+00:00"
     },
     {
       "id": "radixark/miles#1006",
@@ -716,9 +716,9 @@
       "url": "https://github.com/radixark/miles/pull/1006",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "移除LLM相关模块，保留核心骨架代码",
-      "reason": "这是针对Miles diffusion项目特定的代码清理工作，删除了该项目中的LLM集成模块。这是repo-specific的改动，因为涉及的是该仓库的特定功能移除和架构调整，而不是通用的算法或接口改进，其他项目不会从中直接受益",
-      "analyzed_at": "2026-04-19T11:38:28.632092+00:00"
+      "summary": "移除 LLM 相关模块，保留 Miles diffusion 训练框架的核心骨架结构",
+      "reason": "该 PR 是针对 miles 仓库自身架构的清理工作，专门为 diffusion 模型方向剥离 LLM 相关代码，属于仓库特有的目录结构和模块组织调整，不涉及其他框架通用的算法、并行训练或权重同步等组件",
+      "analyzed_at": "2026-04-19T13:26:07.103949+00:00"
     },
     {
       "id": "radixark/miles#1007",
@@ -732,9 +732,9 @@
       "url": "https://github.com/radixark/miles/pull/1007",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "支持在密集基础模型上随机初始化并训练MTP头部，用于改进推测解码的接受率",
-      "reason": "这个PR添加的MTP（多token预测）头部训练功能是针对miles仓库特有的RL训练流程的集成，涉及该仓库的特定参数配置、检查点格式和与sglang的配合。虽然MTP是通用算法，但具体实现、参数定义和与该仓库训练框架的集成都是repo-specific的。",
-      "analyzed_at": "2026-04-19T11:38:25.918497+00:00"
+      "summary": "为密集基础模型添加随机初始化 MTP 头并在 RL 训练中支持其端到端训练，以提升投机解码接受率",
+      "reason": "该 PR 实现的 MTP（Multi-Token Prediction）头附加方案与特定模型架构（Qwen3-4B）及该仓库的 SGLang rollout 引擎深度耦合，依赖仓库自身的 checkpoint 格式、参数系统和 SGLang 配套 PR（Qwen3ForCausalLMMTP），属于该仓库特有的模型适配与推理加速集成，不具备跨框架通用性",
+      "analyzed_at": "2026-04-19T13:26:02.509648+00:00"
     },
     {
       "id": "radixark/miles#1008",
@@ -746,11 +746,11 @@
       "created_at": "2026-04-19T04:34:50Z",
       "merged_at": null,
       "url": "https://github.com/radixark/miles/pull/1008",
-      "category": "feature",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "为 GLM-4.7-Flash 模型添加了针对 SWE-bench 任务的完全异步智能体强化学习训练启动器",
-      "reason": "这个 PR 添加的是针对特定模型（GLM-4.7-Flash）和特定任务集（SWE-bench Verified）的训练启动器脚本，涉及该仓库特有的配置参数（train_num_nodes、TP/EP 自动选择、sglang 部署等）和与 Harbor agent 等该仓库特定基础设施的集成，不是通用的算法或训练逻辑改进",
-      "analyzed_at": "2026-04-19T11:38:22.938268+00:00"
+      "summary": "为 GLM-4.7-Flash 模型添加完全异步的 agentic RL 训练启动脚本，支持 SWE-bench Verified 任务的分离式训练/推理部署",
+      "reason": "该 PR 是针对 GLM-4.7-Flash 特定模型的专属适配（包括其 20 个 attention heads 决定的 TP=4 配置、Flash 不支持 TP=8 的限制等），并且深度依赖 miles 仓库自身的路由器（Harbor agent）、内部调度机制（miles-host-ip、router-external-host）以及仓库特定的目录结构（examples/experimental/swe-agent-v2），不具备跨框架通用性",
+      "analyzed_at": "2026-04-19T13:25:57.462017+00:00"
     },
     {
       "id": "radixark/miles#1009",
@@ -764,9 +764,9 @@
       "url": "https://github.com/radixark/miles/pull/1009",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复当代理在首个助手回复持久化前重试发散消息时的错误处理，改为重新生成检查点而非抛出异常",
-      "reason": "这是针对该仓库特有的会话管理和检查点回滚机制的修复，涉及 miles 框架中特定的消息验证和状态管理逻辑，不是通用算法或接口层的改动",
-      "analyzed_at": "2026-04-19T11:38:19.817792+00:00"
+      "summary": "修复当第一个 assistant 消息未持久化时，session 回滚逻辑抛出 MessageValidationError 导致 trial 终止的问题，改为重新 reseed 以允许重试恢复",
+      "reason": "该修复针对 miles 框架特有的 session 管理机制（_try_detect_and_rollback_to_assistant_checkpoint、Harbor trial 系统、LiteLLM 集成），涉及的 rollback/checkpoint 逻辑是该仓库自身设计的 agent session 状态机，并非通用 rollout 引擎或 RL 训练循环中的普遍问题，其他框架不共享这套 session 持久化与回滚机制",
+      "analyzed_at": "2026-04-19T13:25:50.473766+00:00"
     },
     {
       "id": "radixark/miles#1010",
@@ -780,9 +780,9 @@
       "url": "https://github.com/radixark/miles/pull/1010",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "在会话服务器上为 /v1/model_info 端点添加存根实现，以兼容 OpenAI 客户端的 tokenizer hash 探测",
-      "reason": "这个修复针对 SGLang 会话服务器的特定问题（缺少 /v1/model_info 路由导致的 404 错误），是该仓库特有的路由配置和集成细节，其他库虽然可能遇到类似问题但解决方案不具有通用性",
-      "analyzed_at": "2026-04-19T11:38:17.340242+00:00"
+      "summary": "在 session server 上为 /v1/model_info 添加 stub 路由，修复 OpenAI 兼容客户端因 SGLang 路径差异导致的 404 警告",
+      "reason": "此修复针对 miles 仓库自身的 session-proxy 路由架构——SGLang 暴露 /model_info 而非 /v1/model_info，导致 miles 特有的 wildcard 转发逻辑返回 404。其他框架若未使用相同的 session-proxy 设计则不会遇到此问题，属于仓库特有路由器的修改。",
+      "analyzed_at": "2026-04-19T13:25:42.435869+00:00"
     },
     {
       "id": "radixark/miles#1011",
@@ -796,9 +796,9 @@
       "url": "https://github.com/radixark/miles/pull/1011",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "在日志工具中添加 train/rollout_id 和 train/step_in_rollout 轴，以提供更清晰的训练进度追踪",
-      "reason": "这个改动是针对 miles 仓库特有的动态批处理和 rollout 机制的日志可视化优化。虽然涉及训练循环的度量，但具体解决的是该仓库独特的 rollout-based 训练架构下的日志问题，其他库不一定采用相同的 rollout 机制",
-      "analyzed_at": "2026-04-19T11:38:14.372039+00:00"
+      "summary": "在日志工具中新增 train/rollout_id 和 train/step_in_rollout 两个日志轴，以便更直观地追踪训练进度",
+      "reason": "该 PR 针对 miles 仓库特有的动态批处理（dynamic batching）逻辑导致 train/step 难以解读的问题，添加的日志轴依赖该仓库自身的 rollout 调度和日志记录结构（如 rollout_id、num_steps_per_rollout 等内部字段），是对该仓库特定日志体系的扩展，不具备跨框架的通用性。",
+      "analyzed_at": "2026-04-19T13:25:37.595658+00:00"
     },
     {
       "id": "THUDM/slime#1754",
@@ -810,11 +810,11 @@
       "created_at": "2026-03-23T07:53:49Z",
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1754",
-      "category": "feature",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "从 slime 配置中传递 megatron bridge provider 参数，支持 kimi25 强化学习部分的配置管理",
-      "reason": "这个改动涉及该仓库特有的 slime 配置体系和 megatron bridge provider 的集成实现细节，是针对 THUDM/slime 仓库的特定功能增强，其他类似库不直接适用",
-      "analyzed_at": "2026-04-19T11:38:11.504958+00:00"
+      "summary": "将 Megatron bridge provider 的参数从 slime 配置中透传，支持 kimi25 RL 训练第二部分的配置驱动",
+      "reason": "该 PR 涉及 slime 框架自身特有的配置体系（slime config）与内部 Megatron bridge provider 的参数传递机制，属于 slime 仓库内部架构的集成适配，而非通用的 Megatron 并行训练 bug 修复或算法改动。其他框架不使用 slime config 这一特定配置层，因此不具备跨框架复用性。",
+      "analyzed_at": "2026-04-19T13:25:33.274101+00:00"
     },
     {
       "id": "THUDM/slime#1755",
@@ -828,9 +828,9 @@
       "url": "https://github.com/THUDM/slime/pull/1755",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "为Kimi 2.5模型支持VL rollout处理器和训练时token扩展功能",
-      "reason": "该PR针对THUDM/slime仓库中特定的Kimi 2.5模型(K25)添加VL(视觉语言)rollout处理和token扩展机制，涉及该仓库特有的模型配置和训练流程定制，不是通用算法改进",
-      "analyzed_at": "2026-04-19T11:38:09.363787+00:00"
+      "summary": "为 Kimi25 VL 模型添加 rollout processor 支持，并实现训练时的 token 扩展功能",
+      "reason": "该 PR 属于 Kimi25（slime 仓库内特定模型系列）的专属适配，包括针对 K25 VL 的 rollout processor 实现和 train-time token expansion，是与该仓库内部模型命名和架构强绑定的特化改动，而非通用的多模态 VLM 支持框架，其他框架无法直接复用这些特定于 K25 的处理逻辑。",
+      "analyzed_at": "2026-04-19T13:25:26.523605+00:00"
     },
     {
       "id": "THUDM/slime#1756",
@@ -843,10 +843,10 @@
       "merged_at": "2026-03-29T05:46:56Z",
       "url": "https://github.com/THUDM/slime/pull/1756",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复检查点加载路径、移除FSDP相关参数、禁用multimodal token type ids返回",
-      "reason": "这些修复针对SLIME仓库特有的Megatron集成实现细节，包括该仓库特定的检查点加载逻辑、FSDP配置参数处理，以及与Transformers库版本兼容性的适配，不是通用的算法或训练逻辑改动",
-      "analyzed_at": "2026-04-19T11:38:06.123883+00:00"
+      "scope": "universal",
+      "summary": "修复HF checkpoint加载路径错误、移除FSDP多模态冗余字段、禁用新版Transformers中processor默认返回的非tensor字段mm_token_type_ids",
+      "reason": "三处修复均涉及通用训练基础设施：checkpoint加载路径是所有框架都会遇到的问题；FSDP多模态字段清理和新版Transformers processor兼容性问题（mm_token_type_ids）在任何使用FSDP+Megatron+VLM的框架中都可能出现",
+      "analyzed_at": "2026-04-19T13:25:22.133216+00:00"
     },
     {
       "id": "THUDM/slime#1757",
@@ -860,9 +860,9 @@
       "url": "https://github.com/THUDM/slime/pull/1757",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "为 Kimi-K2.5 模型添加支持 BF16、FP8、INT4 格式之间的 Hugging Face 权重转换功能",
-      "reason": "这个改动针对 THUDM/slime 仓库中特定的 Kimi-K2.5 模型的权重转换实现，涉及该仓库特有的模型配置和转换逻辑，其他仓库虽然也可能有类似的量化需求，但这里的具体实现是为该仓库特定模型定制的",
-      "analyzed_at": "2026-04-19T11:38:03.728685+00:00"
+      "summary": "支持 Kimi-K2.5 模型在 BF16、FP8、INT4 格式之间的 HuggingFace 权重转换",
+      "reason": "该 PR 专门针对 Kimi-K2.5 这一特定模型的权重格式转换适配，属于该仓库对特定模型的专属支持，其他框架不会遇到完全相同的 Kimi-K2.5 模型适配需求",
+      "analyzed_at": "2026-04-19T13:25:18.245309+00:00"
     },
     {
       "id": "THUDM/slime#1759",
@@ -874,11 +874,11 @@
       "created_at": "2026-03-24T05:58:28Z",
       "merged_at": "2026-03-29T05:46:10Z",
       "url": "https://github.com/THUDM/slime/pull/1759",
-      "category": "bugfix",
+      "category": "doc",
       "scope": "repo-specific",
-      "summary": "修复代码中的拼写错误",
-      "reason": "typo 修复通常是针对具体代码实现的细节问题，属于该仓库特有的代码维护，不涉及通用算法或接口逻辑",
-      "analyzed_at": "2026-04-19T11:38:01.357010+00:00"
+      "summary": "修复仓库中的拼写错误（typo）",
+      "reason": "typo 修复通常针对仓库自身的文档、注释或代码中的拼写错误，不涉及任何通用算法或训练基础设施逻辑，属于仓库特有的文本修正",
+      "analyzed_at": "2026-04-19T13:25:14.293561+00:00"
     },
     {
       "id": "THUDM/slime#1760",
@@ -891,10 +891,10 @@
       "merged_at": "2026-03-27T07:44:22Z",
       "url": "https://github.com/THUDM/slime/pull/1760",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为多模态模型添加 OPD（在线投影蒸馏）支持",
-      "reason": "该改动是针对 THUDM/slime 仓库特有的多模态框架实现，涉及该仓库中特定的多模态架构集成和配置，其他类似库若要应用需要根据自身架构进行适配",
-      "analyzed_at": "2026-04-19T11:37:59.545262+00:00"
+      "scope": "universal",
+      "summary": "为多模态训练添加 OPD（Online Preference Data）支持，修复 #1758 中报告的多模态 OPD 相关问题",
+      "reason": "多模态（VLM）支持和在线偏好数据（OPD）处理属于通用训练基础设施范畴，其他 RL 训练框架（如 miles 等）在接入视觉输入和多模态偏好数据时会面临相同的工程挑战，具有跨框架的参考价值",
+      "analyzed_at": "2026-04-19T13:25:11.561369+00:00"
     },
     {
       "id": "THUDM/slime#1762",
@@ -907,10 +907,10 @@
       "merged_at": "2026-04-07T06:59:02Z",
       "url": "https://github.com/THUDM/slime/pull/1762",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复了当启用--no-check-for-nan-in-loss-and-grad时，prepare_grads返回found_inf=True导致grad_norm未初始化而引发UnboundLocalError的bug",
-      "reason": "这个修复涉及Megatron训练框架在slime中的特定实现逻辑，包括optimizer.prepare_grads()和optimizer.step()的调用顺序以及该仓库特定的grad_norm处理方式，不是通用的算法或训练逻辑改动",
-      "analyzed_at": "2026-04-19T11:37:57.038722+00:00"
+      "scope": "universal",
+      "summary": "修复 Megatron 训练中 found_inf 跳过路径时 grad_norm 未初始化导致的 UnboundLocalError",
+      "reason": "该 bug 出现在 Megatron 训练循环的梯度处理逻辑中（prepare_grads 返回 found_inf=True 时跳过 optimizer.step），这是所有使用 Megatron 优化器的 RL 训练框架都会面临的通用问题，与 slime 自身特有逻辑无关",
+      "analyzed_at": "2026-04-19T13:25:07.930278+00:00"
     },
     {
       "id": "THUDM/slime#1764",
@@ -923,10 +923,10 @@
       "merged_at": "2026-04-03T03:52:44Z",
       "url": "https://github.com/THUDM/slime/pull/1764",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "在 available_memory 函数中添加主机内存指标统计",
-      "reason": "这是针对 THUDM/slime 仓库特有的内存管理功能增强，涉及该项目的内存监控和资源管理实现细节，虽然内存监控是通用概念，但具体的实现和集成方式是该仓库特有的",
-      "analyzed_at": "2026-04-19T11:37:54.654261+00:00"
+      "scope": "universal",
+      "summary": "在 available_memory 函数中新增主机内存（host memory）指标的监控与返回，使框架能同时感知 GPU 显存和 CPU 内存的可用情况。",
+      "reason": "在训练框架中监控可用内存时同时纳入主机（CPU/host）内存指标，是通用的基础设施改进。任何使用类似内存管理或资源监控的 RL 训练框架（如 verl、openrlhf 等）都可能面临同样需求，不依赖 slime 特有的架构或命名。",
+      "analyzed_at": "2026-04-19T13:25:01.764977+00:00"
     },
     {
       "id": "THUDM/slime#1765",
@@ -939,10 +939,10 @@
       "merged_at": "2026-03-25T07:03:40Z",
       "url": "https://github.com/THUDM/slime/pull/1765",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "同步内部的bug修复",
-      "reason": "PR标题中明确提到'sync internal bugfix'，表示这是同步内部修复，属于该仓库特有的内部问题修复，不涉及通用算法或接口变更，其他类似库不会直接受益",
-      "analyzed_at": "2026-04-19T11:37:52.514021+00:00"
+      "scope": "universal",
+      "summary": "同步内部 bug 修复补丁到公开仓库",
+      "reason": "从描述'sync internal bugfix'来看，这是将内部发现并修复的 bug 同步到公开仓库，此类 bug 修复通常涉及训练循环、rollout、权重同步等通用组件，其他使用相同组件的框架同样可能遇到类似问题，属于通用性修复",
+      "analyzed_at": "2026-04-19T13:24:56.672504+00:00"
     },
     {
       "id": "THUDM/slime#1768",
@@ -956,9 +956,9 @@
       "url": "https://github.com/THUDM/slime/pull/1768",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复将sglang指标上传到wandb的问题",
-      "reason": "这个PR修复的是该仓库中与wandb集成相关的特定功能缺陷，涉及该项目特有的指标上报逻辑和wandb集成实现细节，不属于通用算法或训练逻辑改动",
-      "analyzed_at": "2026-04-19T11:37:50.288031+00:00"
+      "summary": "修复将 sglang 指标上传到 wandb 时的问题",
+      "reason": "该 PR 针对 slime 框架中 sglang rollout 引擎与 wandb 日志集成的特定问题，属于仓库内部监控/日志基础设施的修复，与 sglang 在 slime 中的具体接入方式强相关，其他框架即使使用 sglang 也不一定有相同的指标上传逻辑和路径，因此属于 repo-specific。",
+      "analyzed_at": "2026-04-19T13:24:52.924536+00:00"
     },
     {
       "id": "THUDM/slime#1769",
@@ -972,9 +972,9 @@
       "url": "https://github.com/THUDM/slime/pull/1769",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "为Qwen3.5模型添加FP8格式转换支持",
-      "reason": "这是针对THUDM/slime仓库中特定模型(Qwen3.5)的功能扩展，涉及该仓库特有的模型配置和转换实现细节，其他仓库的相似需求需要根据各自模型情况单独适配",
-      "analyzed_at": "2026-04-19T11:37:48.160943+00:00"
+      "summary": "为 Qwen3.5 模型添加 FP8 权重转换支持",
+      "reason": "该 PR 专门针对 Qwen3.5 这一特定模型的 FP8 格式适配，属于该仓库对特定模型的专属 patch，其他框架不会直接复用此代码，因此属于 repo-specific",
+      "analyzed_at": "2026-04-19T13:24:48.942874+00:00"
     },
     {
       "id": "THUDM/slime#1770",
@@ -988,9 +988,9 @@
       "url": "https://github.com/THUDM/slime/pull/1770",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "将 sglang-router 的依赖从内部实现切换到使用 zhuzilin/sgl-router 外部包",
-      "reason": "这是针对该仓库特有的依赖管理和集成方式的改动，涉及该项目如何组织和引入 router 组件，不涉及通用算法或逻辑，其他仓库不会直接受益",
-      "analyzed_at": "2026-04-19T11:37:45.464385+00:00"
+      "summary": "将 sglang-router 的依赖从通用包切换为作者自己维护的 zhuzilin/sgl-router 分支",
+      "reason": "该 PR 修改的是 slime 仓库自己集成的 sglang 路由器组件的具体实现来源，属于仓库内部调度/路由工具的版本切换，其他框架不会依赖同一个 sgl-router，因此是 repo-specific",
+      "analyzed_at": "2026-04-19T13:24:45.291474+00:00"
     },
     {
       "id": "THUDM/slime#1772",
@@ -1004,9 +1004,9 @@
       "url": "https://github.com/THUDM/slime/pull/1772",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "更新 Docker 配置中的 sgl-router 依赖版本",
-      "reason": "这是对 THUDM/slime 仓库特有的 Docker 配置的更新，涉及该项目特定的依赖管理和部署配置，不涉及通用算法或通用接口改动，其他项目不会直接受益",
-      "analyzed_at": "2026-04-19T11:37:42.076668+00:00"
+      "summary": "更新 Docker 镜像中的 sgl-router 版本或配置",
+      "reason": "Docker 构建脚本和镜像更新属于该仓库特有的部署基础设施，与其他框架无关，属于 repo-specific",
+      "analyzed_at": "2026-04-19T13:24:40.710588+00:00"
     },
     {
       "id": "THUDM/slime#1773",
@@ -1020,9 +1020,9 @@
       "url": "https://github.com/THUDM/slime/pull/1773",
       "category": "refactor",
       "scope": "repo-specific",
-      "summary": "移除 SLIME 路由器的相关代码和逻辑",
-      "reason": "这是对 THUDM/slime 仓库特有组件（路由器）的重构移除，属于该项目内部架构调整，不涉及通用算法或跨项目通用的改动",
-      "analyzed_at": "2026-04-19T11:37:39.501640+00:00"
+      "summary": "移除 slime 框架内部特有的 router 组件",
+      "reason": "slime router 是该仓库自有的内部调度/路由模块，属于仓库特有的架构设计，其他框架不存在相同组件，因此此次重构仅对 slime 仓库本身有意义。",
+      "analyzed_at": "2026-04-19T13:24:38.028115+00:00"
     },
     {
       "id": "THUDM/slime#1774",
@@ -1036,9 +1036,9 @@
       "url": "https://github.com/THUDM/slime/pull/1774",
       "category": "feature",
       "scope": "universal",
-      "summary": "提议为 slime 训练框架添加钩子机制，以便在训练过程中注入回调函数",
-      "reason": "钩子（hooks）机制是训练框架的通用设计模式，允许用户在训练的关键阶段执行自定义逻辑，这种能力对其他机器学习库和框架同样有益，具有普遍的适用价值",
-      "analyzed_at": "2026-04-19T11:37:37.090637+00:00"
+      "summary": "提议在 slime 训练流程中引入 hook 机制，允许用户通过回调函数在训练各阶段注入自定义逻辑。",
+      "reason": "在训练循环中注入回调钩子（hooks/callbacks）是一种通用的训练框架设计模式，其他 RL 训练框架（如 verl、OpenRLHF 等）同样需要此类机制来支持自定义逻辑介入训练各阶段，不依赖 slime 特有的内部结构。",
+      "analyzed_at": "2026-04-19T13:24:33.950943+00:00"
     },
     {
       "id": "THUDM/slime#1775",
@@ -1051,10 +1051,10 @@
       "merged_at": "2026-03-29T05:45:33Z",
       "url": "https://github.com/THUDM/slime/pull/1775",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复了 Megatron LR 调度器在禁用优化器状态加载时重复快进导致学习率错误的问题",
-      "reason": "这个 PR 修复的是 Megatron 框架在该仓库集成中的特定行为问题——在 initialize_model_and_optimizer() 中移除了冗余的 LR 调度器快进调用，该问题特定于使用 Megatron 的仓库集成方式，其他相似库的实现可能不同",
-      "analyzed_at": "2026-04-19T11:37:34.797775+00:00"
+      "scope": "universal",
+      "summary": "移除 initialize_model_and_optimizer() 中多余的 LR scheduler fast-forward 调用，修复 --no-load-optim 场景下 LR 被错误推进到 min_lr 的问题",
+      "reason": "Megatron LR scheduler 的重复 fast-forward 问题是使用 Megatron 训练框架的通用问题，任何基于 Megatron 的 RL 训练框架（如 veRL、OpenRLHF 等）在处理 --no-load-optim 场景时都可能遇到相同的 checkpoint 恢复逻辑错误，属于 Megatron 训练基础设施中的通用 bug 修复",
+      "analyzed_at": "2026-04-19T13:24:29.445136+00:00"
     },
     {
       "id": "THUDM/slime#1776",
@@ -1066,11 +1066,11 @@
       "created_at": "2026-03-28T17:16:04Z",
       "merged_at": "2026-03-28T17:16:41Z",
       "url": "https://github.com/THUDM/slime/pull/1776",
-      "category": "feature",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "添加了rollout跟踪时间线查看器，用于可视化模型推理过程中的执行轨迹信息",
-      "reason": "这是针对THUDM/slime仓库特有的调试和可视化工具，用于展示该项目中rollout过程的执行时间线，与特定的推理框架和数据流程紧密耦合，不是通用的算法或训练逻辑改进",
-      "analyzed_at": "2026-04-19T11:37:32.327451+00:00"
+      "summary": "为 rollout 过程添加 trace 时间线可视化工具，帮助分析和调试 rollout 各阶段的耗时分布",
+      "reason": "该 PR 实现的是 slime 框架内部特有的 rollout trace 采集与可视化工具，属于该仓库自己的内部调试/分析工具链，与其他框架的 rollout 引擎实现无直接关联，其他框架不会共享同一套 tracer/visualizer 基础设施",
+      "analyzed_at": "2026-04-19T13:24:24.996350+00:00"
     },
     {
       "id": "THUDM/slime#1777",
@@ -1084,9 +1084,9 @@
       "url": "https://github.com/THUDM/slime/pull/1777",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "发布版本 v0.2.4 更新",
-      "reason": "版本号bump是该仓库特有的发布流程和配置管理，不涉及通用算法或训练逻辑的改动，其他库不会直接受益",
-      "analyzed_at": "2026-04-19T11:37:29.645492+00:00"
+      "summary": "将版本号升级至 v0.2.4 的发布版本 bump",
+      "reason": "版本号 bump 属于仓库特有的发布管理操作，明确列在 repo-specific 标准中，与其他框架无关",
+      "analyzed_at": "2026-04-19T13:24:20.673395+00:00"
     },
     {
       "id": "THUDM/slime#1781",
@@ -1099,10 +1099,10 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1781",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为离线异步rollout添加了版本控制和部分rollout支持，引入新的缓冲策略来管理样本新鲜度",
-      "reason": "这是针对slime框架特有的off-policy异步训练机制的增强，涉及该仓库特定的rollout管理、缓冲策略和生命周期钩子实现，虽然思想可迁移但具体实现与slime架构紧耦合",
-      "analyzed_at": "2026-04-19T11:37:27.930790+00:00"
+      "scope": "universal",
+      "summary": "为全异步 Rollout 引入两种新缓冲策略（legacy_backpressure 和另一种），支持样本过期版本控制（Staleness Control）和部分 Rollout 回收，并补充权重更新前后的生命周期钩子",
+      "reason": "异步 Rollout 中的 staleness/版本控制、partial rollout 回收机制、以及训练循环中 before/after weight update 钩子，是所有基于 off-policy 异步采样的 RL 训练框架（如 veRL、OpenRLHF 等）普遍面临的工程问题，解决方案在设计层面具有通用性，不依赖 slime 特有的模型或硬件适配",
+      "analyzed_at": "2026-04-19T13:24:18.020307+00:00"
     },
     {
       "id": "THUDM/slime#1788",
@@ -1115,10 +1115,10 @@
       "merged_at": "2026-04-04T15:41:23Z",
       "url": "https://github.com/THUDM/slime/pull/1788",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "优化损失函数计算过程以解决训练时的显存溢出问题",
-      "reason": "这是针对该仓库特定训练流程中的显存优化问题，涉及该项目特有的模型架构和损失计算实现细节，优化方案针对性强，其他项目难以直接复用",
-      "analyzed_at": "2026-04-19T11:37:25.220120+00:00"
+      "scope": "universal",
+      "summary": "修复训练过程中 loss 计算导致的显存溢出（OOM）问题，通过优化 loss 相关计算逻辑降低显存峰值",
+      "reason": "loss 计算的 OOM 问题是 RL 大模型训练框架中的通用问题，任何使用相似训练循环（PPO/GRPO）和 Megatron/FSDP 并行的框架都可能遇到相同的显存管理挑战，修复思路和方法对其他框架同样具有参考价值",
+      "analyzed_at": "2026-04-19T13:24:12.598404+00:00"
     },
     {
       "id": "THUDM/slime#1791",
@@ -1131,10 +1131,10 @@
       "merged_at": "2026-04-03T03:50:47Z",
       "url": "https://github.com/THUDM/slime/pull/1791",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复SFT启动脚本中--apply-chat-template标志导致的运行时TypeError，该标志会将消息列表转换为字符串，与SFT推出函数的期望不符。",
-      "reason": "这是针对THUDM/slime仓库特有的脚本配置问题。该修复涉及该仓库特定的run_geo3k_vlm_sft.sh启动脚本和其与prepare_sft_data.py的集成逻辑，改动是移除特定的命令行标志，属于该项目的特定配置和工作流细节，不是通用的算法或接口级别的改进。",
-      "analyzed_at": "2026-04-19T11:37:22.055761+00:00"
+      "scope": "universal",
+      "summary": "移除 SFT 启动脚本中的 `--apply-chat-template` 标志，避免消息列表被提前序列化为字符串导致 sft_rollout 运行时 TypeError",
+      "reason": "该 PR 修复了 SFT 数据预处理流程中 `--apply-chat-template` 标志导致的类型错误：消息列表被提前转换为字符串，而 rollout 阶段期望的是结构化的消息 dict 列表。这类「数据格式在 pipeline 中被意外转换导致下游组件类型不匹配」的问题，在任何使用相同 SFT rollout 设计模式的框架（miles、verl 等）中都可能出现，属于多模态 VLM SFT 数据处理的通用问题。",
+      "analyzed_at": "2026-04-19T13:24:07.158239+00:00"
     },
     {
       "id": "THUDM/slime#1795",
@@ -1147,10 +1147,10 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1795",
       "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为rollout采样添加mask支持，增强模型在生成过程中的控制能力",
-      "reason": "该改动针对slime仓库中rollout采样过程的具体实现细节，添加mask机制以支持更细粒度的采样控制。这是该仓库特定的采样策略优化，虽然mask的概念通用，但具体实现与slime的rollout机制紧密耦合，属于repo-specific的功能增强",
-      "analyzed_at": "2026-04-19T11:37:17.827518+00:00"
+      "scope": "universal",
+      "summary": "为 rollout 采样过程添加 sampling mask 支持，允许对特定 token 位置进行掩码控制",
+      "reason": "sampling mask 是 rollout 采样阶段的通用机制，用于控制哪些 token 参与损失计算或采样，适用于所有使用类似 rollout 引擎的 RL 训练框架（如 veRL、OpenRLHF 等），属于通用采样策略改动",
+      "analyzed_at": "2026-04-19T13:24:02.042980+00:00"
     },
     {
       "id": "THUDM/slime#1797",
@@ -1164,9 +1164,9 @@
       "url": "https://github.com/THUDM/slime/pull/1797",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复在创建critic的RayTrainGroup时错误地传递了actor角色的问题",
-      "reason": "这个修复涉及的是THUDM/slime仓库中RayTrainGroup创建时的角色配置细节，属于该项目特有的Ray分布式训练框架集成实现，不是通用的算法或训练逻辑问题",
-      "analyzed_at": "2026-04-19T11:37:15.013108+00:00"
+      "summary": "修复为 critic 创建 RayTrainGroup 时错误传入 actor role 的问题，改为正确传递 critic role",
+      "reason": "此 bug 涉及 slime 仓库特有的 RayTrainGroup 和 actor_group.py 内部实现，其中对 role 参数的校验逻辑是该仓库自己的调度/分组机制，其他框架不共享这套 Ray actor 分组接口设计，因此属于 repo-specific",
+      "analyzed_at": "2026-04-19T13:23:58.359649+00:00"
     },
     {
       "id": "THUDM/slime#1798",
@@ -1178,11 +1178,11 @@
       "created_at": "2026-04-02T22:25:58Z",
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1798",
-      "category": "feature",
-      "scope": "repo-specific",
-      "summary": "添加检查点保留限制功能，在长训练过程中自动清理旧的检查点以节省磁盘空间",
-      "reason": "这个PR引入了针对SLIME框架特有的检查点管理功能，包括`--max-actor-ckpt-to-keep`、`--max-critic-ckpt-to-keep`和`--checkpoint-storage-type`等参数，以及基于rollout ID追踪的清理逻辑。这些改动涉及该仓库特有的Megatron和HuggingFace检查点格式集成，以及SLIME框架中actor-critic架构的具体实现细节，不适用于通用场景",
-      "analyzed_at": "2026-04-19T11:37:12.870002+00:00"
+      "category": "infra",
+      "scope": "universal",
+      "summary": "新增 checkpoint 保留数量限制功能，支持自动清理旧的 actor/critic checkpoint，避免长时间训练时磁盘空间耗尽",
+      "reason": "Checkpoint 管理（限制保留数量、自动清理旧版本）是所有大模型训练框架的通用需求，无论使用 Megatron 还是 HF 格式，该功能设计（路径回调、内存中 ID 追踪、rank 选择逻辑）可直接迁移到 verl、OpenRLHF 等其他 RL 训练框架中，不依赖 slime 特有的结构或命名约定",
+      "analyzed_at": "2026-04-19T13:23:54.080429+00:00"
     },
     {
       "id": "THUDM/slime#1799",
@@ -1196,9 +1196,9 @@
       "url": "https://github.com/THUDM/slime/pull/1799",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复Qwen3.5 397B模型在启用专家并行时的权重转换错误，使用全局专家ID而非本地ID索引融合张量",
-      "reason": "该改动针对THUDM/slime仓库特有的Qwen模型权重转换逻辑（slime_plugins/mbridge/qwen3_5.py）的实现细节问题。虽然涉及专家并行的一般性概念，但具体修复是针对该仓库Qwen3.5模型的特定融合张量处理流程，与HuggingFace权重格式和该仓库的模型桥接实现紧密耦合，不具有跨库通用性",
-      "analyzed_at": "2026-04-19T11:37:10.495945+00:00"
+      "summary": "修复 Qwen3.5 397B 模型在启用 expert parallel 时权重转换错误，使 EP rank 使用 global expert id 而非 local expert id 来索引 HF fused tensor",
+      "reason": "该 bug 位于 slime 仓库特有的 mbridge/qwen3_5.py 模型适配文件中，修复的是 Qwen3.5 专属的权重格式转换逻辑，属于该仓库对特定模型的专属适配代码，其他框架不共享此文件或此转换逻辑",
+      "analyzed_at": "2026-04-19T13:23:49.229659+00:00"
     },
     {
       "id": "THUDM/slime#1801",
@@ -1212,9 +1212,9 @@
       "url": "https://github.com/THUDM/slime/pull/1801",
       "category": "algo",
       "scope": "universal",
-      "summary": "添加 FIPO (Future-KL Influenced Policy Optimization) 作为内置损失函数，实现基于未来轨迹的密集token级别信用分配机制用于强化学习训练",
-      "reason": "FIPO 是一个通用的强化学习优化算法，通过Future-KL影响权重对PPO进行扩展，实现token级别的优势重加权。这是算法层面的改进，其核心思想和实现逻辑对其他类似的语言模型强化学习框架同样适用和有益，具有通用性",
-      "analyzed_at": "2026-04-19T11:37:07.409215+00:00"
+      "summary": "新增 FIPO（Future-KL Influenced Policy Optimization）损失类型，通过未来KL影响权重对每个token的优势进行密集加权，实现无需价值网络的token级信用分配",
+      "reason": "FIPO是一种通用的RL策略优化算法改进，基于PPO扩展，涉及advantage估计和per-token KL散度计算，属于标准RL算法范畴，任何使用PPO/GRPO训练框架的系统（如verl、OpenRLHF等）都可以应用该方法，不依赖slime特有的架构或组件",
+      "analyzed_at": "2026-04-19T13:23:44.548575+00:00"
     },
     {
       "id": "THUDM/slime#1805",
@@ -1226,11 +1226,11 @@
       "created_at": "2026-04-04T16:46:31Z",
       "merged_at": "2026-04-05T02:27:29Z",
       "url": "https://github.com/THUDM/slime/pull/1805",
-      "category": "feature",
-      "scope": "repo-specific",
-      "summary": "从内部仓库同步代码更新到公开版本",
-      "reason": "这是一个同步内部仓库的PR，主要涉及该仓库特有的代码维护和版本同步流程，属于仓库特定的集成操作，而非通用算法或训练逻辑的改动",
-      "analyzed_at": "2026-04-19T11:37:04.618589+00:00"
+      "category": "infra",
+      "scope": "universal",
+      "summary": "从内部仓库同步代码变更到开源版本",
+      "reason": "虽然描述为'sync from internal'，但此类内部同步PR通常包含通用的训练基础设施改进、bug修复或算法调整，这些改动在使用相同组件的其他框架中同样适用；若仅是仓库特有的配置或路由调整则偏repo-specific，但缺乏具体diff信息，默认按通用基础设施同步处理",
+      "analyzed_at": "2026-04-19T13:23:39.777447+00:00"
     },
     {
       "id": "THUDM/slime#1806",
@@ -1242,11 +1242,11 @@
       "created_at": "2026-04-05T04:32:01Z",
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1806",
-      "category": "feature",
-      "scope": "repo-specific",
-      "summary": "为权重同步添加可选的delta压缩功能，通过稀疏编码和批量解码将同步时间从50秒降低到22.6秒，性能提升2.2倍",
-      "reason": "该改动是针对THUDM/slime仓库特有的trainer到rollout-engine权重同步机制的优化，涉及该项目特定的分布式训练架构设计和SGLang接收器的集成实现细节，不属于通用的算法或训练逻辑改进",
-      "analyzed_at": "2026-04-19T11:37:01.988986+00:00"
+      "category": "infra",
+      "scope": "universal",
+      "summary": "为 trainer → rollout 引擎的权重同步添加可选的增量压缩（delta compression），仅广播稀疏差量而非全量参数，将同步时间从约50秒降至约22.6秒（提速约2.2倍）",
+      "reason": "权重同步是所有 RL 训练框架（veRL、OpenRLHF、RLVR 等）的通用基础设施问题，delta compression 的思路（保留 CPU baseline、广播稀疏 delta、接收端批量应用）适用于任何使用 actor-rollout 分离架构的框架，不依赖 slime 特有的代码结构或模型",
+      "analyzed_at": "2026-04-19T13:23:33.986515+00:00"
     },
     {
       "id": "THUDM/slime#1807",
@@ -1258,11 +1258,11 @@
       "created_at": "2026-04-05T10:11:36Z",
       "merged_at": "2026-04-05T10:11:45Z",
       "url": "https://github.com/THUDM/slime/pull/1807",
-      "category": "refactor",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "与内部仓库同步代码更新，涉及该仓库特有的实现细节和配置调整",
-      "reason": "这是一个内部同步 PR，通常涉及特定仓库的维护工作、配置更新或内部实现细节的调整，不是通用算法或跨仓库适用的改动",
-      "analyzed_at": "2026-04-19T11:36:59.050915+00:00"
+      "summary": "从内部仓库同步最新改动到公开仓库",
+      "reason": "该PR是从内部仓库向外部公开仓库的同步操作，属于slime特有的内部开发流程，其具体改动内容与该仓库的内部基础设施和发布机制紧密相关，不具有跨框架的通用性。",
+      "analyzed_at": "2026-04-19T13:23:28.737294+00:00"
     },
     {
       "id": "THUDM/slime#1808",
@@ -1276,9 +1276,9 @@
       "url": "https://github.com/THUDM/slime/pull/1808",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "为Qwen3.5在pre-Hopper GPU上添加自动降级到flash_attn的机制，以支持head_dim=256的注意力层",
-      "reason": "这个修复针对THUDM/slime仓库中Qwen3.5模型的特定配置问题。虽然涉及GPU能力检测和注意力机制替换的通用技术，但具体实现是针对该仓库的Qwen3.5规范(get_qwen3_5_spec)和TE库集成的处理，包含仓库特有的spec定义和配置逻辑",
-      "analyzed_at": "2026-04-19T11:36:56.984047+00:00"
+      "summary": "为 Qwen3.5（head_dim=256）在非 Hopper 架构 GPU 上自动回退到 flash_attn，绕过 Transformer Engine 不支持大 head_dim 的限制",
+      "reason": "该修复针对 slime 仓库中 Qwen3.5 模型的专属适配逻辑（get_qwen3_5_spec），属于特定模型在特定仓库实现中的 patch，其他框架即使遇到相同硬件问题也需要在各自的模型 spec 实现中单独处理，不构成通用组件的修复",
+      "analyzed_at": "2026-04-19T13:23:24.806927+00:00"
     },
     {
       "id": "THUDM/slime#1809",
@@ -1291,10 +1291,10 @@
       "merged_at": "2026-04-07T04:26:24Z",
       "url": "https://github.com/THUDM/slime/pull/1809",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复log-prob前向传播步骤中缺失position_ids参数导致的TypeError",
-      "reason": "这是针对THUDM/slime仓库中GPTModel实现的特定bug修复，是对PR #1807引入问题的补救措施，涉及该仓库特有的模型接口调用逻辑",
-      "analyzed_at": "2026-04-19T11:36:54.206743+00:00"
+      "scope": "universal",
+      "summary": "修复 log-prob 前向传播步骤中缺少 position_ids 参数导致的 TypeError",
+      "reason": "此 bug 源于 GPTModel.forward() 调用时未传入 position_ids，属于 Megatron 模型前向传播接口调用的通用问题。任何基于 Megatron GPTModel 进行 log-prob 计算的框架（如 verl、openrlhf 等）在类似重构后都可能遇到相同错误，不依赖 slime 特有的结构或模型适配。",
+      "analyzed_at": "2026-04-19T13:23:19.948156+00:00"
     },
     {
       "id": "THUDM/slime#1812",
@@ -1308,9 +1308,9 @@
       "url": "https://github.com/THUDM/slime/pull/1812",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "在save_tensors中添加支持，使得转换后的Qwen3.5 Megatron权重能够包含原始HuggingFace检查点中缺失的权重",
-      "reason": "这个改动针对THUDM/slime仓库特有的Qwen3.5模型权重转换流程，涉及该仓库特定的Megatron到HuggingFace格式的转换逻辑和实现细节，不是通用的算法或接口改进",
-      "analyzed_at": "2026-04-19T11:36:51.260777+00:00"
+      "summary": "在 save_tensors 中增加对缺失权重的补全支持，将部分 Qwen3.5 Megatron 权重转换回完整的 HuggingFace 格式",
+      "reason": "该 PR 专门针对 Qwen3.5 模型在 Megatron 格式下保存时缺失权重的问题，属于该仓库对特定模型（Qwen3.5）的专属适配逻辑，其他框架即便使用 Megatron 也不会直接复用此代码",
+      "analyzed_at": "2026-04-19T13:23:15.107433+00:00"
     },
     {
       "id": "THUDM/slime#1813",
@@ -1322,11 +1322,11 @@
       "created_at": "2026-04-07T07:06:01Z",
       "merged_at": "2026-04-07T07:06:46Z",
       "url": "https://github.com/THUDM/slime/pull/1813",
-      "category": "bugfix",
+      "category": "infra",
       "scope": "repo-specific",
-      "summary": "在 build_conda.sh 脚本中添加自定义 sgl-router 的安装步骤，修复构建流程中的依赖问题",
-      "reason": "这个改动涉及该仓库特有的 conda 构建脚本配置和部署流程，针对 THUDM/slime 项目的特定构建需求，其他项目无需采用相同的修复方式",
-      "analyzed_at": "2026-04-19T11:36:48.153924+00:00"
+      "summary": "在 build_conda.sh 中添加安装自定义 sgl-router 的步骤，修复 #1792 报告的问题",
+      "reason": "该 PR 修改的是 slime 仓库特定的 conda 构建脚本，涉及该仓库自己使用的 sgl-router 组件的安装配置，属于仓库特有的构建基础设施，其他框架不会共享此脚本或依赖",
+      "analyzed_at": "2026-04-19T13:23:11.140170+00:00"
     },
     {
       "id": "THUDM/slime#1814",
@@ -1340,9 +1340,9 @@
       "url": "https://github.com/THUDM/slime/pull/1814",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "在永久 PR 工作流中注册 Geo3K Qwen3.5-4B VLM 烟雾测试，并文档化新的 VLM 覆盖范围",
-      "reason": "该 PR 的改动涉及 THUDM/slime 仓库特有的 CI/CD 工作流配置、特定模型的测试集成和该仓库的文档更新，这些都是该仓库特定的基础设施配置，不涉及通用算法或接口变更，其他相似库不会直接受益",
-      "analyzed_at": "2026-04-19T11:36:45.972444+00:00"
+      "summary": "在 PR 工作流中注册 Geo3K Qwen3.5-4B VLM 冒烟测试并更新 VLM 覆盖文档",
+      "reason": "该 PR 仅涉及 slime 仓库自身的 CI 配置（新增特定模型的持续集成测试流程）以及仓库内部文档更新，属于仓库特有的 CI/CD 基础设施改动，不涉及任何通用算法、训练循环或可复用组件的改动，其他框架无法直接复用该配置。",
+      "analyzed_at": "2026-04-19T13:23:05.687457+00:00"
     },
     {
       "id": "THUDM/slime#1816",
@@ -1356,9 +1356,9 @@
       "url": "https://github.com/THUDM/slime/pull/1816",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "为 Qwen3.5 MoE 添加混合上下文并行 v1 路径，支持在 GatedDeltaNet 层中进行 CP 感知的因果卷积和分块门控增量规则运算。",
-      "reason": "这个改动是针对 Slime 框架中 Qwen3.5 模型的特定实现，涉及该仓库专有的 zigzag CP 布局转换逻辑和 bshd 路径集成，其他相似库虽然也可能使用线性注意力，但不会直接受益于这个针对 Slime 架构的具体实现细节。",
-      "analyzed_at": "2026-04-19T11:36:43.607858+00:00"
+      "summary": "为 Qwen3.5 MoE 模型的 GatedDeltaNet 线性注意力层添加混合上下文并行（CP）支持，解决反向传播时 OOM 问题",
+      "reason": "该 PR 专门针对 Qwen3.5 MoE 模型的 GatedDeltaNet 层做适配，包括 slime 特有的 zigzag CP shard 布局转换逻辑，以及对 flash-linear-attention 库的特定版本依赖，属于该仓库对特定模型架构的专属适配，其他框架不会直接复用这套 zigzag CP 布局与 GDN kernel 的对接逻辑",
+      "analyzed_at": "2026-04-19T13:23:01.363335+00:00"
     },
     {
       "id": "THUDM/slime#1817",
@@ -1372,9 +1372,9 @@
       "url": "https://github.com/THUDM/slime/pull/1817",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "添加了ROO（Reasoning with Optimized Objectives）相关功能实现",
-      "reason": "PR标题为'Feature/roo'，指向该仓库SLIME特定的新功能模块。该改动针对SLIME框架内ROO推理优化功能的具体实现和集成，属于该仓库特有的功能扩展，不涉及通用算法或其他库通用的基础组件",
-      "analyzed_at": "2026-04-19T11:36:40.258889+00:00"
+      "summary": "为 slime 框架添加 roo 相关功能支持",
+      "reason": "PR 标题为 Feature/roo，描述为空，无法判断具体通用性内容；从命名推测为该仓库内部特定功能模块（roo）的新增，属于仓库特有的功能扩展，不具备跨框架的通用迁移价值",
+      "analyzed_at": "2026-04-19T13:22:54.911768+00:00"
     },
     {
       "id": "THUDM/slime#1819",
@@ -1387,10 +1387,10 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1819",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复启动rollout引擎时出现的地址已被使用错误",
-      "reason": "这是针对THUDM/slime仓库中rollout引擎启动过程的特定bug修复，涉及该项目特有的引擎启动配置和端口管理机制，其他项目的具体实现可能不同",
-      "analyzed_at": "2026-04-19T11:36:37.609974+00:00"
+      "scope": "universal",
+      "summary": "修复启动 rollout 引擎时因端口已被占用而导致的启动失败问题",
+      "reason": "启动 rollout 引擎时端口被占用（address already in use）是一个通用的分布式训练基础设施问题，任何使用类似多进程/多节点 rollout 引擎架构的框架（如 verl、OpenRLHF、miles 等）都可能遇到相同的端口冲突问题，修复思路（如动态端口分配或重试机制）具有普适性。",
+      "analyzed_at": "2026-04-19T13:22:50.747924+00:00"
     },
     {
       "id": "THUDM/slime#1822",
@@ -1403,10 +1403,10 @@
       "merged_at": "2026-04-09T11:20:28Z",
       "url": "https://github.com/THUDM/slime/pull/1822",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "移除熵计算中的no_grad以防止DSA模式下通信卡住",
-      "reason": "该修复针对SLIME框架在分布式稀疏注意力(DSA)模式下的特定问题。no_grad上下文管理器的移除涉及该仓库独特的分布式训练通信机制和内存优化策略，其他库不会面临相同的通信卡住问题，因此属于repo-specific范畴。",
-      "analyzed_at": "2026-04-19T11:36:35.563388+00:00"
+      "scope": "universal",
+      "summary": "恢复熵计算中的梯度传播（取消 no_grad），以修复分布式通信卡死问题",
+      "reason": "在使用 Megatron 等分布式并行框架时，若熵计算被包裹在 no_grad 中，会导致某些集合通信操作（如 all-reduce）因梯度图不一致而卡死（stuck）。这类问题在所有使用 Megatron 张量并行或流水线并行的 RL 训练框架中均可能出现，属于通用的分布式训练基础设施 bug，不依赖于 slime 特有的代码结构。",
+      "analyzed_at": "2026-04-19T13:22:46.504075+00:00"
     },
     {
       "id": "THUDM/slime#1823",
@@ -1419,10 +1419,10 @@
       "merged_at": "2026-04-09T12:29:10Z",
       "url": "https://github.com/THUDM/slime/pull/1823",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "为 get_seqlen_balanced_partitions 函数添加备选方案处理",
-      "reason": "这是针对 THUDM/slime 仓库特有的序列长度平衡分区函数的容错改进，涉及该仓库特定的实现细节和错误处理逻辑，其他仓库通常不会直接使用相同的函数名称和实现",
-      "analyzed_at": "2026-04-19T11:36:32.581714+00:00"
+      "scope": "universal",
+      "summary": "为 get_seqlen_balanced_partitions 函数添加 fallback 逻辑，避免在极端情况下出现错误",
+      "reason": "序列长度均衡分区（seqlen balanced partitions）是 rollout/训练循环中通用的数据分批策略，所有使用类似负载均衡分区机制的 RL 训练框架都可能遇到边界情况导致的异常，该修复具有普遍适用性",
+      "analyzed_at": "2026-04-19T13:22:41.587393+00:00"
     },
     {
       "id": "THUDM/slime#1824",
@@ -1436,9 +1436,9 @@
       "url": "https://github.com/THUDM/slime/pull/1824",
       "category": "feature",
       "scope": "repo-specific",
-      "summary": "为GLM-5模型添加SFT损失掩码支持，实现多轮对话训练时的损失计算掩码机制",
-      "reason": "该PR针对GLM-5模型的特定角色令牌格式（<|assistant|>、<|user|>等）实现损失掩码，涉及该仓库特有的mask_utils工具、arguments配置和具体的GLM-5模型适配，不具有通用性",
-      "analyzed_at": "2026-04-19T11:36:29.531253+00:00"
+      "summary": "为 GLM-5 模型添加多轮 SFT 的 loss mask 支持，新增 `--loss-mask-type glm5` 选项",
+      "reason": "该 PR 专门针对 GLM-5 模型的特有 token 格式（无闭合标签的角色分隔符）实现 loss mask 逻辑，属于对特定模型的专属适配，其他框架无法直接复用此实现，因此为 repo-specific",
+      "analyzed_at": "2026-04-19T13:22:38.121241+00:00"
     },
     {
       "id": "THUDM/slime#1825",
@@ -1451,10 +1451,10 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1825",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复 Gemma3 模型配置，使用 GeGLU 激活函数替代 SwiGLU 以匹配上游预训练权重",
-      "reason": "这是针对 THUDM/slime 仓库中 Gemma3 模型的特定配置修复。问题源于上游 mbridge 基础配置硬编码了 SwiGLU，但整个 Gemma 系列实际使用 GeGLU，这个修复是针对该仓库与上游配置不一致的问题。虽然涉及激活函数选择，但修复的是该仓库对特定模型的配置错误，属于仓库特有的集成问题",
-      "analyzed_at": "2026-04-19T11:36:27.132788+00:00"
+      "scope": "universal",
+      "summary": "修复 Gemma 系列模型在 Megatron MLP 路径中错误使用 SwiGLU 而非 GeGLU 激活函数的问题",
+      "reason": "Gemma 系列模型使用 GeGLU（gelu_pytorch_tanh + GLU）而非 SwiGLU，这是 Megatron 框架集成中的通用模型适配 bug。任何基于 Megatron 后端运行 Gemma 模型的训练框架（如 verl、openrlhf 等）都会遇到同样的激活函数配置错误，属于跨框架普遍存在的问题。",
+      "analyzed_at": "2026-04-19T13:22:34.543326+00:00"
     },
     {
       "id": "THUDM/slime#1827",
@@ -1468,9 +1468,9 @@
       "url": "https://github.com/THUDM/slime/pull/1827",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复 build_conda.sh 中 cuda-python 版本号的不一致问题，将 13.1.0 改为 12.9 以匹配 CUDA 12.9 和 PyTorch cu129 栈",
-      "reason": "这是针对 THUDM/slime 仓库特有的构建脚本配置修复，涉及该项目的 CUDA 环境设置细节，其他仓库有各自不同的配置方案",
-      "analyzed_at": "2026-04-19T11:36:24.288630+00:00"
+      "summary": "修复 build_conda.sh 中 cuda-python 版本号与 CUDA 12.9 栈不一致的问题，将其从 13.1.0 更正为 12.9",
+      "reason": "该修复针对 slime 仓库特有的 conda 构建脚本 build_conda.sh，属于特定硬件/环境构建脚本的版本号修正，与其他 RL 训练框架的核心组件无关，其他框架不会受此影响",
+      "analyzed_at": "2026-04-19T13:22:29.604644+00:00"
     },
     {
       "id": "THUDM/slime#1828",
@@ -1483,10 +1483,10 @@
       "merged_at": "2026-04-15T06:37:00Z",
       "url": "https://github.com/THUDM/slime/pull/1828",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复 convert_torch_dist_to_hf.py 脚本在设置 --add-missing-from-origin-hf 参数时应使用 CPU 而非 CUDA 的问题",
-      "reason": "这是针对 THUDM/slime 仓库特定的模型转换脚本的 bug 修复，涉及该仓库特有的工具链和配置逻辑，其他仓库不太可能直接受益",
-      "analyzed_at": "2026-04-19T11:36:21.951964+00:00"
+      "scope": "universal",
+      "summary": "修复 convert_torch_dist_to_hf.py 在启用 --add-missing-from-origin-hf 时错误使用 cuda 而非 cpu 的问题",
+      "reason": "checkpoint 格式转换（分布式权重转 HF 格式）是通用训练基础设施的一部分，将张量放到错误设备（cuda vs cpu）的 bug 在其他使用类似权重转换逻辑的框架中同样可能出现，属于通用 checkpoint 处理问题",
+      "analyzed_at": "2026-04-19T13:22:24.034160+00:00"
     },
     {
       "id": "THUDM/slime#1832",
@@ -1500,9 +1500,9 @@
       "url": "https://github.com/THUDM/slime/pull/1832",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "为SLIME模型添加A100 GPU支持，包括离线构建脚本、Docker镜像和示例配置",
-      "reason": "这是针对THUDM/slime仓库特有的构建配置和部署优化，包括离线构建流程、A100特定的编译补丁和Docker镜像配置，这些都是该仓库特定的基础设施改进，其他项目虽然可能参考思路但具体实现需要根据各自情况定制",
-      "analyzed_at": "2026-04-19T11:36:19.920940+00:00"
+      "summary": "为 A100 环境添加补丁集、离线友好的 conda 构建脚本、Docker 镜像及示例",
+      "reason": "该 PR 的核心内容是针对特定硬件（A100）的构建脚本、Docker 镜像和 conda 离线安装流程，属于该仓库特有的部署基础设施配置，不涉及通用的训练算法、rollout 引擎或并行框架改动，其他 RL 训练框架无需复用这些构建脚本。",
+      "analyzed_at": "2026-04-19T13:22:19.860378+00:00"
     },
     {
       "id": "THUDM/slime#1833",
@@ -1516,9 +1516,9 @@
       "url": "https://github.com/THUDM/slime/pull/1833",
       "category": "bugfix",
       "scope": "repo-specific",
-      "summary": "修复bridge模式下激活检查点(recompute)参数缺失导致的OOM问题",
-      "reason": "该问题涉及THUDM/slime仓库特有的AutoBridge和megatron_to_hf_mode集成机制，以及该仓库特定的provider初始化流程。虽然激活检查点是通用概念，但具体问题出现在该仓库特有的bridge模式实现中，解决方案也是针对其特定的配置同步逻辑",
-      "analyzed_at": "2026-04-19T11:36:17.169765+00:00"
+      "summary": "修复 bridge 模式下 AutoBridge 生成的 model provider 缺少 activation checkpointing（recompute）相关参数，导致 OOM 的问题",
+      "reason": "该 bug 依赖于 slime 仓库特有的 `AutoBridge` 组件和 `megatron_to_hf_mode == 'bridge'` 这一特定机制，以及其从 HF config.json 生成 provider 的内部流程，其他框架不共享这套 bridge 设计，因此属于 repo-specific",
+      "analyzed_at": "2026-04-19T13:22:15.788313+00:00"
     },
     {
       "id": "THUDM/slime#1834",
@@ -1532,9 +1532,9 @@
       "url": "https://github.com/THUDM/slime/pull/1834",
       "category": "doc",
       "scope": "repo-specific",
-      "summary": "在README的Notable Projects部分添加Relax(全模态智能体训练的异步强化学习引擎)项目条目",
-      "reason": "这个改动仅涉及该仓库README文档的内容更新,属于仓库特有的文档维护,不涉及通用的算法或逻辑改进,其他相似库不会直接受益",
-      "analyzed_at": "2026-04-19T11:36:14.639165+00:00"
+      "summary": "在 README 的 Notable Projects 部分新增 Relax 异步 RL 引擎项目条目",
+      "reason": "这是对该仓库 README 文档的更新，仅与 slime 仓库自身的项目介绍页面相关，属于版本号 bump、README 更新等 repo-specific 类别，不涉及任何通用算法、训练基础设施或跨框架共享的代码逻辑",
+      "analyzed_at": "2026-04-19T13:22:11.736898+00:00"
     },
     {
       "id": "THUDM/slime#1835",
@@ -1548,9 +1548,9 @@
       "url": "https://github.com/THUDM/slime/pull/1835",
       "category": "infra",
       "scope": "repo-specific",
-      "summary": "为 NVIDIA DGX Spark (GB10/sm_121a) 芯片添加 Docker 构建支持，包括 arm64 架构和 CUDA 13.2 适配",
-      "reason": "这个 PR 的改动是针对 slime 仓库特有的 Docker 构建流程和配置，涉及该项目特定的基础镜像选择、CUDA 工具链配置等实现细节。虽然支持新硬件架构本身具有普遍意义，但具体的 Dockerfile 修改、镜像选择和构建策略是该仓库的特有需求，其他相似库可能采用不同的解决方案",
-      "analyzed_at": "2026-04-19T11:36:12.527256+00:00"
+      "summary": "为 NVIDIA DGX Spark（GB10/sm_121a，arm64）添加专用 Dockerfile，基于支持 CUDA 13.2 的 nvcr.io/nvidia/vllm:26.03-py3 镜像以解决 Triton JIT 在 arm64 上崩溃的问题",
+      "reason": "该 PR 仅涉及 slime 仓库自身的 Docker 构建脚本，新增了针对特定硬件（GB10 芯片、aarch64 架构）的 Dockerfile.gb10，属于仓库特有的硬件构建配置，不涉及任何通用训练算法或框架组件改动",
+      "analyzed_at": "2026-04-19T13:22:07.741461+00:00"
     },
     {
       "id": "THUDM/slime#1836",
@@ -1563,10 +1563,10 @@
       "merged_at": "2026-04-16T03:14:52Z",
       "url": "https://github.com/THUDM/slime/pull/1836",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复多智能体场景下eval日志记录的类型检查问题，处理generate返回List[Sample]的情况",
-      "reason": "这是针对THUDM/slime仓库中多智能体场景的特定实现细节的bug修复，涉及该仓库eval逻辑对生成结果类型的处理，不涉及通用的算法或接口设计",
-      "analyzed_at": "2026-04-19T11:36:08.648511+00:00"
+      "scope": "universal",
+      "summary": "修复多智能体场景下 eval 日志记录时未处理 generate 返回值为 List[Sample] 类型的问题，通过类型检查选取合适的样本进行日志记录。",
+      "reason": "多智能体场景下 generate 返回 List[Sample] 而非单个 Sample 的类型处理问题，是所有支持 multi-agent rollout 的 RL 训练框架都可能遇到的通用 bug，涉及 rollout 引擎的采样结果类型兼容性处理，不依赖 slime 特有的结构。",
+      "analyzed_at": "2026-04-19T13:22:03.662938+00:00"
     },
     {
       "id": "THUDM/slime#1841",
@@ -1579,10 +1579,10 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1841",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "为 SFT 数据集的 messages 格式启用最大长度过滤，防止超长样本在动态批处理中违反 token 预算限制",
-      "reason": "该修改针对 THUDM/slime 仓库特有的 SFT 训练流程和 messages 数据格式处理，涉及该项目的具体配置参数（--rollout-max-prompt-len）和动态批处理机制，不是通用算法或接口改动",
-      "analyzed_at": "2026-04-19T11:36:06.383598+00:00"
+      "scope": "universal",
+      "summary": "扩展 SFT 最大长度过滤逻辑，使其支持 messages 格式（list[dict]）的数据集，防止超长样本绕过过滤进入动态批处理导致 OOM",
+      "reason": "messages 格式（chat template）是各 RL/SFT 训练框架普遍使用的数据格式，对超长样本进行过滤以防止动态批处理 OOM 是通用的训练基础设施问题，其他采用类似数据管线和动态批处理的框架（如 verl、open-rlhf 等）同样会面临此类问题",
+      "analyzed_at": "2026-04-19T13:21:59.136405+00:00"
     },
     {
       "id": "THUDM/slime#1842",
@@ -1595,113 +1595,113 @@
       "merged_at": null,
       "url": "https://github.com/THUDM/slime/pull/1842",
       "category": "bugfix",
-      "scope": "repo-specific",
-      "summary": "修复FP16训练时梯度准备函数被调用两次导致梯度过小的问题",
-      "reason": "这个修复针对Megatron框架中MixedPrecisionOptimizer的具体实现细节。虽然双重调用prepare_grads的问题具有通用性，但修复方案依赖于该仓库特定的train_one_step函数实现和Megatron优化器的特定行为，因此属于repo-specific范畴。",
-      "analyzed_at": "2026-04-19T11:36:04.250304+00:00"
+      "scope": "universal",
+      "summary": "修复 fp16 训练时 prepare_grads 被调用两次导致梯度被双重缩放（极小化）的问题",
+      "reason": "该 bug 源于 Megatron 的 MixedPrecisionOptimizer.step() 内部已调用 prepare_grads()，而训练循环外又额外调用了一次，导致 loss scaler 双重 unscale，这是所有使用 Megatron MixedPrecisionOptimizer 进行 fp16 训练的框架都会遇到的通用问题，与 slime 自身特有逻辑无关",
+      "analyzed_at": "2026-04-19T13:21:54.583790+00:00"
     }
   ],
   "analyzed_ids": [
-    "THUDM/slime#1756",
-    "THUDM/slime#1776",
-    "THUDM/slime#1806",
-    "THUDM/slime#1788",
-    "THUDM/slime#1759",
-    "radixark/miles#1006",
-    "radixark/miles#971",
-    "radixark/miles#966",
-    "radixark/miles#998",
-    "radixark/miles#1001",
-    "THUDM/slime#1801",
-    "THUDM/slime#1817",
-    "THUDM/slime#1823",
-    "radixark/miles#967",
-    "THUDM/slime#1754",
-    "THUDM/slime#1768",
-    "THUDM/slime#1774",
-    "THUDM/slime#1762",
-    "THUDM/slime#1842",
-    "THUDM/slime#1764",
-    "radixark/miles#989",
     "radixark/miles#975",
-    "radixark/miles#993",
-    "radixark/miles#987",
-    "THUDM/slime#1769",
-    "THUDM/slime#1757",
-    "radixark/miles#972",
-    "radixark/miles#974",
-    "THUDM/slime#1755",
-    "radixark/miles#976",
-    "radixark/miles#986",
-    "THUDM/slime#1841",
-    "THUDM/slime#1760",
-    "radixark/miles#999",
-    "THUDM/slime#1822",
-    "radixark/miles#985",
-    "THUDM/slime#1805",
-    "THUDM/slime#1765",
-    "THUDM/slime#1836",
-    "THUDM/slime#1833",
-    "radixark/miles#996",
-    "THUDM/slime#1825",
-    "THUDM/slime#1775",
-    "radixark/miles#1007",
-    "THUDM/slime#1799",
-    "radixark/miles#1008",
-    "radixark/miles#965",
-    "THUDM/slime#1816",
-    "THUDM/slime#1832",
-    "radixark/miles#973",
-    "radixark/miles#961",
-    "radixark/miles#1011",
-    "radixark/miles#1000",
-    "radixark/miles#997",
-    "THUDM/slime#1824",
-    "radixark/miles#954",
+    "THUDM/slime#1772",
+    "THUDM/slime#1806",
+    "radixark/miles#995",
     "THUDM/slime#1834",
-    "THUDM/slime#1791",
-    "THUDM/slime#1814",
+    "radixark/miles#973",
+    "THUDM/slime#1799",
+    "radixark/miles#989",
+    "radixark/miles#967",
     "radixark/miles#952",
-    "radixark/miles#1004",
-    "radixark/miles#960",
-    "radixark/miles#1003",
-    "radixark/miles#991",
-    "radixark/miles#964",
-    "radixark/miles#982",
-    "radixark/miles#1005",
-    "THUDM/slime#1808",
-    "THUDM/slime#1819",
-    "radixark/miles#988",
-    "THUDM/slime#1807",
+    "THUDM/slime#1813",
+    "THUDM/slime#1781",
+    "THUDM/slime#1814",
+    "THUDM/slime#1825",
+    "THUDM/slime#1823",
     "radixark/miles#968",
-    "THUDM/slime#1827",
+    "THUDM/slime#1760",
+    "radixark/miles#1004",
+    "THUDM/slime#1788",
+    "THUDM/slime#1798",
+    "radixark/miles#974",
     "THUDM/slime#1812",
     "radixark/miles#959",
-    "THUDM/slime#1781",
-    "radixark/miles#1009",
-    "radixark/miles#990",
-    "THUDM/slime#1773",
-    "THUDM/slime#1770",
-    "THUDM/slime#1777",
-    "radixark/miles#977",
-    "THUDM/slime#1813",
-    "radixark/miles#995",
-    "THUDM/slime#1798",
-    "radixark/miles#1010",
-    "THUDM/slime#1828",
-    "radixark/miles#957",
-    "THUDM/slime#1795",
-    "THUDM/slime#1772",
-    "radixark/miles#984",
-    "radixark/miles#994",
-    "THUDM/slime#1797",
-    "radixark/miles#953",
-    "radixark/miles#992",
-    "radixark/miles#980",
     "THUDM/slime#1835",
-    "radixark/miles#963",
+    "THUDM/slime#1842",
+    "radixark/miles#976",
+    "radixark/miles#990",
+    "THUDM/slime#1765",
+    "radixark/miles#953",
+    "THUDM/slime#1777",
+    "radixark/miles#988",
+    "THUDM/slime#1833",
+    "radixark/miles#1011",
+    "THUDM/slime#1801",
+    "radixark/miles#966",
+    "radixark/miles#986",
+    "THUDM/slime#1774",
+    "THUDM/slime#1773",
+    "THUDM/slime#1809",
+    "THUDM/slime#1828",
+    "radixark/miles#1008",
+    "THUDM/slime#1832",
+    "THUDM/slime#1822",
+    "THUDM/slime#1824",
+    "THUDM/slime#1768",
+    "THUDM/slime#1816",
+    "radixark/miles#996",
+    "radixark/miles#964",
+    "THUDM/slime#1770",
+    "radixark/miles#997",
+    "radixark/miles#961",
+    "THUDM/slime#1775",
+    "radixark/miles#957",
+    "THUDM/slime#1791",
+    "THUDM/slime#1776",
+    "THUDM/slime#1808",
+    "THUDM/slime#1819",
+    "THUDM/slime#1757",
+    "radixark/miles#998",
+    "radixark/miles#984",
+    "THUDM/slime#1754",
+    "radixark/miles#1003",
+    "radixark/miles#987",
+    "THUDM/slime#1797",
+    "radixark/miles#982",
+    "THUDM/slime#1841",
+    "radixark/miles#1009",
+    "THUDM/slime#1759",
+    "radixark/miles#1000",
+    "radixark/miles#992",
+    "THUDM/slime#1805",
+    "radixark/miles#1007",
+    "radixark/miles#960",
+    "THUDM/slime#1827",
+    "radixark/miles#980",
+    "radixark/miles#972",
+    "THUDM/slime#1795",
+    "THUDM/slime#1762",
+    "THUDM/slime#1764",
+    "radixark/miles#999",
+    "radixark/miles#1005",
+    "THUDM/slime#1755",
+    "radixark/miles#1010",
+    "THUDM/slime#1817",
+    "THUDM/slime#1836",
+    "radixark/miles#1006",
+    "THUDM/slime#1769",
+    "radixark/miles#977",
+    "radixark/miles#993",
+    "radixark/miles#994",
     "radixark/miles#958",
-    "THUDM/slime#1809"
+    "radixark/miles#965",
+    "THUDM/slime#1807",
+    "radixark/miles#971",
+    "radixark/miles#954",
+    "THUDM/slime#1756",
+    "radixark/miles#1001",
+    "radixark/miles#991",
+    "radixark/miles#963",
+    "radixark/miles#985"
   ],
-  "last_updated": "2026-04-19T11:40:25.278902+00:00"
+  "last_updated": "2026-04-19T13:29:34.579278+00:00"
 }

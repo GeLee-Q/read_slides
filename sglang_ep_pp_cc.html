@@ -1,0 +1,1572 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>SGLang Expert Parallel 通俗解读</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    height: 100%;
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: #f0f5fa;
+    color: #1e2a3a;
+    overflow: hidden;
+  }
+  .deck {
+    width: 100vw;
+    height: 100vh;
+    position: relative;
+  }
+  .slide {
+    position: absolute;
+    inset: 0;
+    padding: 44px 64px 60px;
+    display: none;
+    flex-direction: column;
+    overflow: auto;
+  }
+  .slide.active { display: flex; }
+  .slide h1 {
+    font-size: 38px;
+    margin-bottom: 20px;
+    color: #1d4ed8;
+    border-bottom: 2px solid #bfcfe8;
+    padding-bottom: 10px;
+  }
+  .slide h2 {
+    font-size: 22px;
+    margin: 14px 0 10px;
+    color: #16a34a;
+  }
+  .slide p, .slide li {
+    font-size: 18px;
+    line-height: 1.65;
+    margin-bottom: 6px;
+  }
+  .slide ul { padding-left: 28px; }
+
+  /* 封面 */
+  .cover {
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    background: linear-gradient(135deg, #e8f0fe 0%, #c7d7ff 50%, #e5d4ff 100%);
+  }
+  .cover h1 {
+    font-size: 56px;
+    border: none;
+    color: #1d4ed8;
+    margin-bottom: 16px;
+  }
+  .cover .sub {
+    font-size: 22px;
+    color: #4b6fb5;
+    margin-top: 12px;
+  }
+
+  /* 导航 */
+  .nav {
+    position: fixed;
+    bottom: 20px;
+    right: 30px;
+    color: #6888b0;
+    font-size: 14px;
+    z-index: 10;
+  }
+  .progress {
+    position: fixed;
+    bottom: 0; left: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #3b82f6, #22c55e, #a855f7);
+    transition: width 0.3s;
+    z-index: 10;
+  }
+  .hint {
+    position: fixed;
+    bottom: 20px;
+    left: 30px;
+    color: #7a99c0;
+    font-size: 13px;
+  }
+
+  /* 代码块 */
+  code, .code {
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    background: #eff6ff;
+    padding: 2px 7px;
+    border-radius: 4px;
+    color: #1d4ed8;
+    font-size: 15px;
+  }
+  pre {
+    background: #f0f7ff;
+    border-left: 3px solid #60a5fa;
+    padding: 14px 18px;
+    border-radius: 6px;
+    font-family: "SF Mono", Menlo, Consolas, monospace;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #1e3a5f;
+    overflow-x: auto;
+    margin: 10px 0;
+  }
+
+  /* 表格风格 */
+  table {
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 15px;
+    background: #f8faff;
+  }
+  td, th {
+    border: 1px solid #bcd0e8;
+    padding: 6px 12px;
+    text-align: center;
+    min-width: 44px;
+  }
+  th {
+    background: #e8f0fe;
+    color: #1e3a5f;
+    font-weight: normal;
+  }
+
+  /* expert / token 糖果色 */
+  .e0 { background: #d4e8ff; color: #1565c0; }      /* candy blue */
+  .e1 { background: #d4f4d8; color: #2d7a34; }      /* candy mint */
+  .e2 { background: #ffd9b3; color: #c24e16; }      /* candy peach */
+  .e3 { background: #ecd4ff; color: #7b27a8; }      /* candy grape */
+  .t0, .t1, .t2, .t3 { background: #fff0d8; color: #8d5a3a; }
+
+  .rank0 { border: 2px solid #4cb8d4 !important; }
+  .rank1 { border: 2px solid #ec5b8c !important; }
+
+  /* 两列布局 */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 22px;
+    margin-top: 8px;
+  }
+  .col {
+    background: #ffffff;
+    border: 1px solid #c3d5ef;
+    border-radius: 10px;
+    padding: 16px 18px;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
+  }
+  .col h3 {
+    color: #2563eb;
+    margin-bottom: 10px;
+    font-size: 17px;
+  }
+  .col.r1 h3 { color: #7c3aed; }
+
+  .callout {
+    background: #eff6ff;
+    border-left: 4px solid #60a5fa;
+    padding: 12px 18px;
+    border-radius: 6px;
+    margin: 12px 0;
+    font-size: 16px;
+    line-height: 1.7;
+  }
+  .callout.green { background: #e8f7ed; border-color: #5cc987; }
+  .callout.red { background: #fef2f2; border-color: #f87171; }
+
+  .arrow {
+    color: #7c3aed;
+    font-size: 22px;
+    margin: 0 8px;
+  }
+
+  .step-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin-top: 20px;
+  }
+  .step-card {
+    background: #ffffff;
+    border: 1px solid #c3d5ef;
+    border-left: 4px solid #2563eb;
+    border-radius: 8px;
+    padding: 16px 18px;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.07);
+  }
+  .step-card:nth-child(1) { border-left-color: #2563eb; }  /* 蓝 */
+  .step-card:nth-child(2) { border-left-color: #0891b2; }  /* 青 */
+  .step-card:nth-child(3) { border-left-color: #16a34a; }  /* 绿 */
+  .step-card:nth-child(4) { border-left-color: #22c55e; }  /* 亮绿 */
+  .step-card:nth-child(5) { border-left-color: #7c3aed; }  /* 紫 */
+  .step-card:nth-child(6) { border-left-color: #3b82f6; }  /* 浅蓝 */
+  .step-card .num {
+    color: #2563eb;
+    font-size: 14px;
+    font-weight: bold;
+    margin-bottom: 6px;
+  }
+  .step-card .title {
+    font-size: 18px;
+    color: #1e2a3a;
+    margin-bottom: 6px;
+  }
+  .step-card .desc {
+    font-size: 15px;
+    color: #4b6080;
+    line-height: 1.5;
+  }
+
+  .flow {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 20px 0;
+    flex-wrap: wrap;
+  }
+  .flow .box {
+    background: #eff6ff;
+    border: 2px solid #2563eb;
+    border-radius: 8px;
+    padding: 10px 16px;
+    font-size: 16px;
+    color: #1e2a3a;
+  }
+
+  /* 工作 ↔ 槽 映射图 */
+  .map-canvas {
+    position: relative;
+    width: 100%;
+    max-width: 900px;
+    height: 320px;
+    margin: 12px auto 4px;
+  }
+  .map-svg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+  }
+  .map-grid {
+    display: grid;
+    grid-template-columns: 290fr 320fr 290fr;
+    height: 100%;
+    position: relative;
+    z-index: 2;
+  }
+  .map-col {
+    display: flex;
+    flex-direction: column;
+    padding: 0 6px;
+  }
+  .map-head {
+    font-size: 13px;
+    color: #4b6080;
+    text-align: center;
+    height: 30px;
+    line-height: 30px;
+    font-weight: 600;
+  }
+  .map-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+  }
+  .map-row.right { justify-content: flex-end; }
+  .idx-tag {
+    font-family: "SF Mono", Menlo, monospace;
+    font-size: 12px;
+    color: #4b6080;
+    min-width: 30px;
+    text-align: center;
+    font-weight: 600;
+  }
+  .chip {
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, monospace;
+    flex: 1;
+    text-align: center;
+    font-weight: 700;
+    min-width: 0;
+    letter-spacing: 0.2px;
+  }
+
+  /* 闭环 U 形回路 */
+  .loop-canvas {
+    position: relative;
+    width: 100%;
+    max-width: 1000px;
+    aspect-ratio: 1000 / 340;
+    margin: 8px auto 6px;
+    background: linear-gradient(180deg, #f0f7ff 0%, #eff6ff 100%);
+    border: 1px solid #c3d5ef;
+    border-radius: 14px;
+    box-shadow: 0 3px 14px rgba(37, 99, 235, 0.10);
+  }
+  .loop-svg {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    width: 100%;
+    height: 100%;
+  }
+  .lbox {
+    position: absolute;
+    z-index: 2;
+    background: white;
+    border: 2.5px solid;
+    border-radius: 12px;
+    padding: 8px 10px;
+    text-align: center;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+    width: 22%;
+    height: 28%;
+  }
+  .lbox .lt {
+    font-size: 15px;
+    font-weight: 700;
+    line-height: 1.25;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .lbox .lc {
+    font-size: 12px;
+    font-weight: 500;
+    color: #4b6080;
+    margin-top: 4px;
+    line-height: 1.3;
+  }
+  .lbox.tok { border-color: #2563eb; background: #dbeafe; }
+  .lbox.tok .lt { color: #1d4ed8; }
+  .lbox.slot { border-color: #0891b2; background: #cffafe; }
+  .lbox.slot .lt { color: #0e7490; }
+  .lbox.gemm { border-color: #5cc987; background: #e8f7ed; }
+  .lbox.gemm .lt { color: #2d8a4f; }
+  .lbox.decode { border-color: #a88be3; background: #f5edff; }
+  .lbox.decode .lt { color: #7b27a8; }
+  .lbox.tl { left: 2%; top: 9%; }
+  .lbox.tm { left: 39%; top: 9%; }
+  .lbox.tr { left: 76%; top: 9%; }
+  .lbox.bl { left: 2%; top: 63%; }
+  .lbox.bm { left: 39%; top: 63%; }
+  .lbox.br { left: 76%; top: 63%; }
+
+  /* Step 3/5 执行可视化 */
+  .exec-canvas {
+    position: relative;
+    width: 100%;
+    max-width: 1000px;
+    aspect-ratio: 1000 / 360;
+    margin: 8px auto 6px;
+    background: linear-gradient(180deg, #f0f7ff 0%, #eff6ff 100%);
+    border: 1px solid #c3d5ef;
+    border-radius: 12px;
+    box-shadow: 0 3px 14px rgba(37, 99, 235, 0.10);
+  }
+  .exec-svg {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 1;
+    width: 100%;
+    height: 100%;
+  }
+  .ehd {
+    position: absolute;
+    z-index: 2;
+    font-size: 13px;
+    font-weight: 700;
+    color: #4b6080;
+    text-align: center;
+    line-height: 1.4;
+  }
+  .ecard {
+    position: absolute;
+    z-index: 2;
+    background: white;
+    border: 2px solid;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 600;
+    font-family: "SF Mono", Menlo, monospace;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 4px 12px;
+    line-height: 1.35;
+    text-align: center;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  .ecard.tok { border-color: #2563eb; background: #eff6ff; color: #1e2a3a; }
+  .ecard.slot-e0 { border-color: #4cb8d4; background: #e8f4ff; color: #1565c0; }
+  .ecard.slot-e1 { border-color: #5cc987; background: #e8f7ed; color: #2d8a4f; }
+  .ecard.slot-e2 { border-color: #f7a35a; background: #fff4e1; color: #c24e16; }
+  .ecard.slot-e3 { border-color: #a88be3; background: #f5edff; color: #7b27a8; }
+  .ecard.slot-empty {
+    border-color: #bcd0e8;
+    background: #eef2fc;
+    color: #6b87a8;
+    border-style: dashed;
+    font-size: 11.5px;
+    font-weight: 500;
+  }
+
+  /* Step 4 pipeline */
+  .pipeline {
+    display: flex;
+    align-items: stretch;
+    gap: 12px;
+    max-width: none;
+    margin: 14px 0;
+  }
+  .ptensor {
+    flex: 1.5;
+    background: white;
+    border: 2px solid #c3d5ef;
+    border-radius: 12px;
+    padding: 12px 10px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 2px 8px rgba(37, 99, 235, 0.08);
+  }
+  .phead {
+    font-size: 14px;
+    font-weight: 700;
+    text-align: center;
+    color: #1d4ed8;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .pshape {
+    font-size: 12px;
+    text-align: center;
+    color: #4b6080;
+    margin-bottom: 10px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .pblocks {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    min-height: 240px;
+  }
+  .pblock {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 7px;
+    font-size: 12.5px;
+    font-weight: 600;
+    font-family: "SF Mono", Menlo, monospace;
+    text-align: center;
+    padding: 6px;
+    line-height: 1.4;
+  }
+  .pblock.e0 { background: #d4e8ff; color: #1565c0; flex: 1; border: 1px solid #4cb8d4; }
+  .pblock.e1 { background: #d4f4d8; color: #2d8a4f; flex: 1; border: 1px solid #5cc987; }
+  .pblock.empty {
+    background: #eef2fc;
+    color: #6b87a8;
+    border: 1px dashed #c3d5ef;
+    flex: 2;
+  }
+  .parrow {
+    flex: 0.5;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .plabel {
+    font-size: 12px;
+    color: #1d4ed8;
+    font-weight: 700;
+    font-family: "SF Mono", Menlo, monospace;
+    line-height: 1.35;
+    margin-bottom: 6px;
+  }
+  .pa {
+    font-size: 34px;
+    color: #7c3aed;
+    font-weight: bold;
+    line-height: 1;
+  }
+
+  /* Step 6 AllReduce grid */
+  .ar-grid {
+    display: grid;
+    grid-template-columns: 70px 1fr 26px 1fr 26px 1fr;
+    gap: 8px 10px;
+    align-items: center;
+    margin: 10px 0 6px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .ar-th {
+    font-size: 13px;
+    font-weight: 700;
+    text-align: center;
+    color: #4b6080;
+    padding: 4px 0;
+    letter-spacing: 0.2px;
+  }
+  .ar-th.r0-th { color: #1565c0; }
+  .ar-th.r1-th { color: #7b27a8; }
+  .ar-th.fin-th { color: #1d4ed8; }
+  .ar-tok {
+    background: #eff6ff;
+    color: #1d4ed8;
+    font-weight: 700;
+    border: 2px solid #2563eb;
+    border-radius: 6px;
+    padding: 8px 4px;
+    text-align: center;
+    font-size: 14px;
+  }
+  .ar-cell {
+    background: white;
+    border: 2px solid;
+    border-radius: 6px;
+    padding: 8px 10px;
+    font-size: 13px;
+    font-weight: 600;
+    text-align: center;
+  }
+  .ar-cell.e0 { border-color: #4cb8d4; background: #e8f4ff; color: #1565c0; }
+  .ar-cell.e1 { border-color: #5cc987; background: #e8f7ed; color: #2d8a4f; }
+  .ar-cell.e2 { border-color: #f7a35a; background: #fff4e1; color: #c24e16; }
+  .ar-cell.e3 { border-color: #a88be3; background: #f5edff; color: #7b27a8; }
+  .ar-cell.fin {
+    border-color: #ec5b8c;
+    background: #fff0f4;
+    color: #d6486a;
+    font-weight: 700;
+  }
+  .ar-op {
+    font-size: 20px;
+    font-weight: bold;
+    color: #7c3aed;
+    text-align: center;
+  }
+  .ar-rank-note {
+    font-size: 11.5px;
+    color: #4b6080;
+    font-weight: 500;
+    margin-top: 2px;
+  }
+
+  /* 核心 trick 对比 */
+  .ct-panels {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0;
+  }
+  .ct-panel {
+    background: white;
+    border-radius: 12px;
+    padding: 12px 16px 10px;
+    border-left: 5px solid;
+    box-shadow: 0 2px 10px rgba(37, 99, 235, 0.08);
+  }
+  .ct-panel.train { border-left-color: #2563eb; background: linear-gradient(90deg, #eff6ff 0%, white 30%); }
+  .ct-panel.sgl { border-left-color: #5cc987; background: linear-gradient(90deg, #f0faf3 0%, white 30%); }
+  .ct-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+  .ct-panel.train .ct-title { color: #1d4ed8; }
+  .ct-panel.sgl .ct-title { color: #2d8a4f; }
+  .ct-flow {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+  }
+  .ct-step {
+    background: #eff6ff;
+    border: 2px solid #60a5fa;
+    border-radius: 8px;
+    padding: 8px 6px;
+    flex: 1.1;
+    text-align: center;
+    font-size: 12.5px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #1d4ed8;
+    line-height: 1.3;
+  }
+  .ct-edge {
+    flex: 0.95;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.35;
+    gap: 3px;
+  }
+  .ct-tag {
+    padding: 3px 9px;
+    border-radius: 5px;
+    font-size: 11.5px;
+    font-weight: 700;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .ct-tag.bad { background: #ffe0e6; color: #c1183e; }
+  .ct-tag.good { background: #d4f4d8; color: #2d8a4f; }
+  .ct-edge .sub {
+    font-size: 11px;
+    color: #4b6080;
+  }
+  .ct-edge .ar {
+    font-size: 18px;
+    color: #7c3aed;
+    font-weight: bold;
+    line-height: 0.8;
+  }
+  .ct-note {
+    margin-top: 8px;
+    font-size: 12.5px;
+    color: #3d5470;
+    padding-left: 6px;
+    border-left: 2px solid #bfcfe8;
+    line-height: 1.5;
+  }
+
+  /* 训练 EP 时序图 */
+  .train-flow {
+    display: grid;
+    grid-template-columns: 1fr 0.4fr 1.2fr 0.4fr 1fr;
+    gap: 12px;
+    margin: 14px auto;
+    max-width: 1000px;
+    align-items: stretch;
+  }
+  .tf-col {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .tf-col-head {
+    text-align: center;
+    font-size: 14px;
+    font-weight: 700;
+    color: #4b6080;
+    margin-bottom: 8px;
+    line-height: 1.3;
+  }
+  .tf-rank {
+    background: white;
+    border: 2px solid;
+    border-radius: 10px;
+    padding: 14px 12px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .tf-rank.r0 { border-color: #4cb8d4; background: #f4faff; }
+  .tf-rank.r1 { border-color: #7c3aed; background: #f5f3ff; }
+  .tf-label {
+    font-size: 13px;
+    font-weight: 700;
+    color: #3d5470;
+    text-align: center;
+    margin-bottom: 2px;
+    font-family: "SF Mono", Menlo, monospace;
+  }
+  .tf-rank.r0 .tf-label { color: #1565c0; }
+  .tf-rank.r1 .tf-label { color: #7c3aed; }
+  .tf-item {
+    background: white;
+    border: 1.5px solid #c3d5ef;
+    border-radius: 5px;
+    padding: 5px 8px;
+    font-size: 13px;
+    font-family: "SF Mono", Menlo, monospace;
+    text-align: center;
+    color: #3d5470;
+  }
+  .tf-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    line-height: 1.3;
+  }
+  .tf-arrow .tf-tag {
+    background: #ffe0e6;
+    color: #c1183e;
+    padding: 5px 10px;
+    border-radius: 5px;
+    font-size: 12px;
+    font-weight: 700;
+    font-family: "SF Mono", Menlo, monospace;
+    white-space: nowrap;
+  }
+  .tf-arrow .tf-sub {
+    font-size: 12px;
+    color: #4b6080;
+    margin-top: 3px;
+    line-height: 1.25;
+  }
+  .tf-arrow .tf-ar {
+    font-size: 24px;
+    color: #7c3aed;
+    font-weight: bold;
+    margin-top: 4px;
+    line-height: 0.8;
+  }
+
+  /* 打印 / 导出 PDF */
+  @page {
+    size: 13.333in 7.5in;   /* 16:9 标准 PPT 页面 */
+    margin: 0;
+  }
+  @media print {
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+    }
+    html, body {
+      background: #f0f5fa !important;
+      overflow: visible !important;
+      height: auto !important;
+      width: auto !important;
+    }
+    .deck {
+      width: auto;
+      height: auto;
+      position: relative;
+    }
+    .slide {
+      position: relative !important;
+      inset: auto !important;
+      display: flex !important;
+      width: 13.333in;
+      height: 7.5in;
+      padding: 36px 56px 56px;
+      page-break-after: always;
+      page-break-inside: avoid;
+      overflow: hidden;
+      break-after: page;
+    }
+    .slide:last-child {
+      page-break-after: auto;
+      break-after: auto;
+    }
+    .nav, .hint, .progress { display: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="deck">
+
+<!-- 1 封面 -->
+<section class="slide cover active">
+  <h1>SGLang Expert Parallel</h1>
+  <div class="sub">通俗版图解 · 一个例子讲完整条流水线</div>
+  <div class="sub" style="margin-top: 40px; font-size: 16px;">基于 BBuf 的解读文章 · PR #2371 · <a href="https://zhuanlan.zhihu.com/p/17790182311" style="color:#3b82f6; text-decoration:none;" target="_blank">知乎原文 ↗</a></div>
+  <div style="margin-top:28px; padding:10px 24px; background:rgba(255,255,255,0.55); border-radius:10px; font-size:14px; color:#3d5eb5; border:1px solid rgba(37,99,235,0.25); max-width:640px;">
+    📌 注：这个版本的实现很老了，只用来给大家介绍下基本的原理
+  </div>
+</section>
+
+<!-- 2 MoE 简介 & EP vs TP（合并） -->
+<section class="slide">
+  <h1>MoE 是什么，以及如何并行？</h1>
+
+  <div class="callout" style="margin-bottom:14px">
+    🎯 <b>MoE（Mixture of Experts）</b>：每层有 N 个专家 FFN，router 为每个 token 选 top_k 个，其余跳过。<br>
+    类比：医院有 256 个专科医生，每个病人只挂 8 个号，最后按权重综合诊断。<br>
+    DeepSeek V3 有 <b>256 个 expert</b>，单卡显存远装不下 → <b>必须多卡切分</b>。两种主流方案：
+  </div>
+
+  <div class="two-col">
+    <div class="col">
+      <h3>TP（张量并行）</h3>
+      <p style="font-size:16px">每个 expert 的权重<b>横向切开</b>，每张卡持有所有 expert 的一部分。</p>
+      <pre>卡0: [e0前半, e1前半, ..., e255前半]
+卡1: [e0后半, e1后半, ..., e255后半]</pre>
+      <p style="font-size:15px; color:#4b6080">每个 token 在每张卡上都参与计算（只算半个 expert），最后 AllReduce 拼回。</p>
+    </div>
+    <div class="col r1">
+      <h3>EP（专家并行）</h3>
+      <p style="font-size:16px">每张卡<b>独占</b>一批完整的 expert，权重不切。</p>
+      <pre>卡0: [e0,  e1,  ..., e31]  完整
+卡1: [e32, e33, ..., e63]  完整
+...
+卡7: [e224, ...,    e255]</pre>
+      <p style="font-size:15px; color:#4b6080">问题：token 的目标 expert 可能不在<b>自己这张卡上</b>。</p>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:12px">
+    🔑 <b>核心区别</b>：TP 的 token 在卡间是<b>共享</b>的（每张卡都见到所有 token，只算自己那一片权重）；EP 的 token <b>原本只在某一张卡上</b>，需要"<b>把 token 搬到 expert 所在的卡</b>"才能算。
+    👉 下一张看训练时怎么解决这个搬运问题。
+  </div>
+</section>
+
+<!-- 4 训练 EP 的 All2All 流程 -->
+<section class="slide">
+  <h1>训练时的 EP：2 次 All2All —— 以及 SGLang 的替代方案</h1>
+
+  <div class="two-col" style="margin-bottom:16px; gap:20px">
+    <div class="callout" style="margin:0; font-size:16px">
+      🗺️ <b>为什么 token 要跨卡找 expert？</b><br>
+      Token 按 batch/sequence <b>自然落在</b>各 rank（<span class="t0">t0/t1</span> → rank 0，<span class="t2">t2/t3</span> → rank 1）。<br>
+      但 router 把每个 token 路由到哪个 expert <b>只看语义</b>，与 token 在哪张卡<b>毫无关系</b>。<br>
+      结果：rank 0 的 <span class="t0">t0</span> 大概率同时需要 rank 0 的 <span class="e1">e1</span> 和 rank 1 的 <span class="e3">e3</span>，<b>必须"搬"过去才能算</b>。
+    </div>
+    <div class="callout green" style="margin:0; font-size:16px">
+      🟢 <b>SGLang 的巧妙：partial output + AllReduce</b><br>
+      每张卡拿到<b>全量 token</b>（不搬 token），只计算自己持有 expert 的那份输出（partial output）。<br>
+      最后一次 <code>AllReduce(SUM)</code> 把各 rank 的 partial output 加齐 → 完整输出。<br>
+      → <b>0 次 All2All</b>，用本地 reorder kernel + 1 次 AllReduce 替代。
+    </div>
+  </div>
+
+  <div class="train-flow" style="max-width:none; font-size:16px">
+    <!-- 列 1：初始 -->
+    <div class="tf-col">
+      <div class="tf-col-head">① 初始：按 rank 自然分布</div>
+      <div class="tf-rank r0">
+        <div class="tf-label">rank 0</div>
+        <div class="tf-item"><span class="t0">t0</span> hidden</div>
+        <div class="tf-item"><span class="t1">t1</span> hidden</div>
+      </div>
+      <div class="tf-rank r1">
+        <div class="tf-label">rank 1</div>
+        <div class="tf-item"><span class="t2">t2</span> hidden</div>
+        <div class="tf-item"><span class="t3">t3</span> hidden</div>
+      </div>
+    </div>
+
+    <!-- 箭头 1 -->
+    <div class="tf-arrow">
+      <span class="tf-tag">All2All ❶</span>
+      <div class="tf-sub">按 topk 目的<br>把 token 散到对应 rank</div>
+      <div class="tf-ar">→</div>
+    </div>
+
+    <!-- 列 2：按 expert 分组 -->
+    <div class="tf-col">
+      <div class="tf-col-head">② All2All ❶ 后 + GEMM</div>
+      <div class="tf-rank r0">
+        <div class="tf-label">rank 0 · 处理 e0/e1</div>
+        <div class="tf-item"><span class="e0">e0</span>：<span class="t1">t1</span>, <span class="t3">t3</span></div>
+        <div class="tf-item"><span class="e1">e1</span>：<span class="t0">t0</span>, <span class="t2">t2</span></div>
+      </div>
+      <div class="tf-rank r1">
+        <div class="tf-label">rank 1 · 处理 e2/e3</div>
+        <div class="tf-item"><span class="e2">e2</span>：<span class="t1">t1</span>, <span class="t2">t2</span></div>
+        <div class="tf-item"><span class="e3">e3</span>：<span class="t0">t0</span>, <span class="t3">t3</span></div>
+      </div>
+    </div>
+
+    <!-- 箭头 2 -->
+    <div class="tf-arrow">
+      <span class="tf-tag">All2All ❷</span>
+      <div class="tf-sub">按原 rank 收回<br>+ 加权求和</div>
+      <div class="tf-ar">→</div>
+    </div>
+
+    <!-- 列 3：收回 -->
+    <div class="tf-col">
+      <div class="tf-col-head">③ All2All ❷ 后：回原 rank</div>
+      <div class="tf-rank r0">
+        <div class="tf-label">rank 0</div>
+        <div class="tf-item">完整 out[<span class="t0">t0</span>] ✓</div>
+        <div class="tf-item">完整 out[<span class="t1">t1</span>] ✓</div>
+      </div>
+      <div class="tf-rank r1">
+        <div class="tf-label">rank 1</div>
+        <div class="tf-item">完整 out[<span class="t2">t2</span>] ✓</div>
+        <div class="tf-item">完整 out[<span class="t3">t3</span>] ✓</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout red" style="margin-top:8px; font-size:15px">
+    ⚠️ <b>训练 vs 推理的差异</b>：训练时 All2All 可与 backward 重叠掩盖；推理 forward <b>几乎无 overlap 机会</b>，两次 All2All 的延迟直接堆到端到端 latency 上 → SGLang 用 partial output + AllReduce 方案替代。
+  </div>
+</section>
+
+<!-- 5 SGLang 解法：6 步流水线 -->
+<section class="slide">
+  <h1>SGLang 的解：6 步用本地 reorder + AllReduce 等价 All2All</h1>
+  <p>核心想法：<b>每张卡都拿到全量 token</b>（不 All2All 散开） → 本地用 reorder kernel 把 token 重排成"按 expert 分段"的样子 → Group GEMM 在本地跑 → 反向 reorder + 加权 → 最后一次 AllReduce 把各 rank 的部分和加齐。</p>
+  <div class="step-grid">
+    <div class="step-card">
+      <div class="num">STEP 1</div>
+      <div class="title">选专家</div>
+      <div class="desc">router 算出每个 token 的 top_k 个 expert 和权重</div>
+    </div>
+    <div class="step-card">
+      <div class="num">STEP 2</div>
+      <div class="title">排序与建索引</div>
+      <div class="desc">按 expert id 排序，产出 3 个映射表（src2dst, seg_indptr, reorder_ids）</div>
+    </div>
+    <div class="step-card">
+      <div class="num">STEP 3</div>
+      <div class="title">pre_reorder</div>
+      <div class="desc"><b>本地</b>把 token 搬到对应 expert 的连续槽 ≈ 替代 <b>All2All ❶</b></div>
+    </div>
+    <div class="step-card">
+      <div class="num">STEP 4</div>
+      <div class="title">Group GEMM ×2</div>
+      <div class="desc">w13 · SiLU · w2，按 expert 段分别批量乘（block-diagonal）</div>
+    </div>
+    <div class="step-card">
+      <div class="num">STEP 5</div>
+      <div class="title">post_reorder</div>
+      <div class="desc"><b>本地</b>按原 token 顺序还原 + topk 加权 ≈ 替代 <b>All2All ❷</b></div>
+    </div>
+    <div class="step-card">
+      <div class="num">STEP 6</div>
+      <div class="title">AllReduce</div>
+      <div class="desc">跨 rank 一次 SUM，把各卡的部分加权和加齐 → 完整 output</div>
+    </div>
+  </div>
+  <p style="margin-top:14px; color:#4b6080"><b>对照训练版</b>：Step 3 + Step 5 用本地 kernel 干了 2 次 All2All 的活儿；最后一次 AllReduce 处理跨 rank 的总和。下面用具体例子把每一步走一遍 👇</p>
+</section>
+
+<!-- 5 例子设定 -->
+<section class="slide">
+  <h1>例子设定</h1>
+  <div class="two-col">
+    <div class="col">
+      <h3>参数</h3>
+      <pre>num_tokens   = 4    (t0, t1, t2, t3)
+num_experts  = 4    (e0, e1, e2, e3)
+top_k        = 2
+EP world     = 2
+  rank 0: e0, e1
+  rank 1: e2, e3</pre>
+    </div>
+    <div class="col">
+      <h3>router 输出</h3>
+      <table>
+        <tr><th>token</th><th>topk_ids</th><th>weights</th></tr>
+        <tr><td class="t0">t0</td><td><span class="e1">e1</span> <span class="e3">e3</span></td><td>0.6, 0.4</td></tr>
+        <tr><td class="t1">t1</td><td><span class="e0">e0</span> <span class="e2">e2</span></td><td>0.7, 0.3</td></tr>
+        <tr><td class="t2">t2</td><td><span class="e2">e2</span> <span class="e1">e1</span></td><td>0.5, 0.5</td></tr>
+        <tr><td class="t3">t3</td><td><span class="e3">e3</span> <span class="e0">e0</span></td><td>0.8, 0.2</td></tr>
+      </table>
+    </div>
+  </div>
+  <h2>展平后的 <code>topk_ids.view(-1)</code>（每个 token 占连续 top_k=2 格）</h2>
+  <table>
+    <tr><th>flat 索引</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr>
+    <tr><th>expert</th><td class="e1">e1</td><td class="e3">e3</td><td class="e0">e0</td><td class="e2">e2</td><td class="e2">e2</td><td class="e1">e1</td><td class="e3">e3</td><td class="e0">e0</td></tr>
+    <tr><th>属于</th><td class="t0">t0</td><td class="t0">t0</td><td class="t1">t1</td><td class="t1">t1</td><td class="t2">t2</td><td class="t2">t2</td><td class="t3">t3</td><td class="t3">t3</td></tr>
+  </table>
+</section>
+
+<!-- 6 Step 2a 排序 -->
+<section class="slide">
+  <h1>Step 2a：按 expert id 排序</h1>
+  <p><code>torch.sort(topk_ids.view(-1), stable=True)</code> —— 把"同一个 expert 的工作"挨到一起。</p>
+
+  <h2>排序前</h2>
+  <table>
+    <tr><th>flat 索引</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr>
+    <tr><th>expert</th><td class="e1">e1</td><td class="e3">e3</td><td class="e0">e0</td><td class="e2">e2</td><td class="e2">e2</td><td class="e1">e1</td><td class="e3">e3</td><td class="e0">e0</td></tr>
+  </table>
+
+  <h2>排序后（解码成"哪个 token 等哪个 expert"）</h2>
+  <table>
+    <tr><th>排序位置 i</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr>
+    <tr><th>expert（reorder_topk_ids）</th><td class="e0">e0</td><td class="e0">e0</td><td class="e1">e1</td><td class="e1">e1</td><td class="e2">e2</td><td class="e2">e2</td><td class="e3">e3</td><td class="e3">e3</td></tr>
+    <tr><th>token（来自哪个 token）</th><td class="t1">t1</td><td class="t3">t3</td><td class="t0">t0</td><td class="t2">t2</td><td class="t1">t1</td><td class="t2">t2</td><td class="t0">t0</td><td class="t3">t3</td></tr>
+    <tr><th>reorder_ids</th><td>2</td><td>7</td><td>0</td><td>5</td><td>3</td><td>4</td><td>1</td><td>6</td></tr>
+  </table>
+
+  <div class="callout">
+    💡 整张表读作：<b>排序后第 i 号槽位，是 <span class="t1">token</span> 在等 <span class="e0">expert</span> 处理</b>。<br>
+    例：i=0 → <span class="t1">t1</span> 在等 <span class="e0">e0</span>；i=4 → <span class="t1">t1</span> 又出现，在等 <span class="e2">e2</span>（t1 选了 e0 和 e2 两个 expert，topk=2）。
+  </div>
+
+  <div class="callout green">
+    🔑 <b>解码 reorder_ids（关键）</b>：<code>reorder_ids[i]</code> <b>本身只是个 flat 索引 j</b>（范围 0 ~ N·top_k−1），<b>不直接告诉你 token</b>。要再做一步除法：<br>
+    　• <code>token_id  = reorder_ids[i] <b>÷</b> top_k</code>　（整除 → 回到 t0~t3）<br>
+    　• <code>topk 位置 = reorder_ids[i] <b>%</b> top_k</code>　（余数 → 决定用哪个 topk_weight）<br>
+    　• <code>expert    = reorder_topk_ids[i]</code>　（这个直接就是）<br>
+    <b>例</b>：i=0，<code>reorder_ids[0]=2</code> → <code>2÷2=1</code> → <span class="t1">t1</span>；<code>2%2=0</code> → t1 的第 0 个 topk → 拿权重 <b>0.7</b>。<br>
+    <b>为什么要余数？</b>同一个 token 在排序后会出现 top_k 次（如 t1 在 i=0 和 i=4 都出现），光知道"是 t1"不够，还得知道"是 t1 的第几次"才能拿对权重。
+  </div>
+</section>
+
+<!-- 7 Step 2b seg_indptr -->
+<section class="slide">
+  <h1>Step 2b：seg_indptr —— 每个 expert 的区间</h1>
+  <p>对每个 expert id 做二分查找，找出它在排序后数组里占的范围。这是给 Group GEMM 用的 CSR 段指针。</p>
+
+  <table style="margin-top:20px">
+    <tr><th>排序位置</th><td>0</td><td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td></tr>
+    <tr><th>expert</th><td class="e0">e0</td><td class="e0">e0</td><td class="e1">e1</td><td class="e1">e1</td><td class="e2">e2</td><td class="e2">e2</td><td class="e3">e3</td><td class="e3">e3</td></tr>
+  </table>
+
+  <h2>得到 seg_indptr</h2>
+  <pre>seg_indptr = [0, 2, 4, 6, 8]
+              ↑  ↑  ↑  ↑  ↑
+              │  │  │  │  └─ 终点
+              │  │  │  └──── e3 段 [6:8)
+              │  │  └─────── e2 段 [4:6)
+              │  └────────── e1 段 [2:4)
+              └───────────── e0 段 [0:2)</pre>
+
+  <div class="callout green">
+    后面 Group GEMM 一看就知道："e0 拿 0~1 这两行做矩阵乘，e1 拿 2~3 这两行……"
+  </div>
+</section>
+
+<!-- 8 Step 2c src2dst -->
+<section class="slide">
+  <h1>Step 2c：同一组工作的两种排法 —— 槽 j ⟷ 槽 i</h1>
+  <p>左右是<b>同一组 8 份工作</b> <code>(token → expert)</code>，只是排成两种顺序：<br>
+    <b>左：</b>按 <span style="color:#d6486a"><b>token</b></span> 排（输入的自然顺序），槽号 <code>j</code>　·　<b>右：</b>按 <span style="color:#d6486a"><b>expert</b></span> 分组（GEMM 要的顺序），槽号 <code>i</code><br>
+    每份工作都有两个槽号 —— <code>src2dst</code> 和 <code>reorder_ids</code> 就是 <code>j ⟷ i</code> 的双向查询表。</p>
+
+  <div class="map-canvas">
+    <svg class="map-svg" viewBox="0 0 900 320" preserveAspectRatio="none">
+      <line x1="284" y1="84"  x2="616" y2="264" stroke="#a88be3" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="120" x2="616" y2="48"  stroke="#4cb8d4" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="156" x2="616" y2="192" stroke="#f7a35a" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="192" x2="616" y2="228" stroke="#f7a35a" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="228" x2="616" y2="156" stroke="#5cc987" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="264" x2="616" y2="300" stroke="#a88be3" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <line x1="284" y1="300" x2="616" y2="84"  stroke="#4cb8d4" stroke-width="1.6" opacity="0.5" vector-effect="non-scaling-stroke"/>
+      <!-- 高亮：j=0 ⟷ i=2，同一份工作 t0→e1 -->
+      <line x1="284" y1="48"  x2="616" y2="120" stroke="#2d8a4f" stroke-width="3" opacity="1" vector-effect="non-scaling-stroke"/>
+      <circle cx="284" cy="48"  r="5" fill="#2d8a4f"/>
+      <circle cx="616" cy="120" r="5" fill="#2d8a4f"/>
+      <rect x="395" y="62" width="110" height="20" fill="#fef6ec" opacity="0.95" rx="3"/>
+      <text x="450" y="76" font-size="13" fill="#2d8a4f" font-family="SF Mono, Menlo, monospace" text-anchor="middle" font-weight="700">src2dst[0]=2</text>
+    </svg>
+    <div class="map-grid">
+      <div class="map-col">
+        <div class="map-head">排序前 · 按 token (槽 j)</div>
+        <div class="map-row"><span class="idx-tag">j=0</span><span class="chip e1">t0 → e1</span></div>
+        <div class="map-row"><span class="idx-tag">j=1</span><span class="chip e3">t0 → e3</span></div>
+        <div class="map-row"><span class="idx-tag">j=2</span><span class="chip e0">t1 → e0</span></div>
+        <div class="map-row"><span class="idx-tag">j=3</span><span class="chip e2">t1 → e2</span></div>
+        <div class="map-row"><span class="idx-tag">j=4</span><span class="chip e2">t2 → e2</span></div>
+        <div class="map-row"><span class="idx-tag">j=5</span><span class="chip e1">t2 → e1</span></div>
+        <div class="map-row"><span class="idx-tag">j=6</span><span class="chip e3">t3 → e3</span></div>
+        <div class="map-row"><span class="idx-tag">j=7</span><span class="chip e0">t3 → e0</span></div>
+      </div>
+      <div class="map-col"></div>
+      <div class="map-col">
+        <div class="map-head">排序后 · 按 expert (槽 i)</div>
+        <div class="map-row right"><span class="chip e0">t1 → e0</span><span class="idx-tag">i=0</span></div>
+        <div class="map-row right"><span class="chip e0">t3 → e0</span><span class="idx-tag">i=1</span></div>
+        <div class="map-row right"><span class="chip e1">t0 → e1</span><span class="idx-tag">i=2</span></div>
+        <div class="map-row right"><span class="chip e1">t2 → e1</span><span class="idx-tag">i=3</span></div>
+        <div class="map-row right"><span class="chip e2">t1 → e2</span><span class="idx-tag">i=4</span></div>
+        <div class="map-row right"><span class="chip e2">t2 → e2</span><span class="idx-tag">i=5</span></div>
+        <div class="map-row right"><span class="chip e3">t0 → e3</span><span class="idx-tag">i=6</span></div>
+        <div class="map-row right"><span class="chip e3">t3 → e3</span><span class="idx-tag">i=7</span></div>
+      </div>
+    </div>
+  </div>
+
+  <table style="margin: 8px auto 2px; font-size: 14px;">
+    <tr>
+      <th>j (排序前槽号)</th>
+      <td style="background:#d4f4d8; color:#2d8a4f; font-weight:700">0</td>
+      <td>1</td><td>2</td><td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    </tr>
+    <tr>
+      <th>src2dst[j] = i</th>
+      <td style="background:#d4f4d8; color:#2d8a4f; font-weight:700">2</td>
+      <td>6</td><td>0</td><td>4</td><td>5</td><td>3</td><td>7</td><td>1</td>
+    </tr>
+  </table>
+
+  <div style="text-align: center; color: #7c3aed; font-size: 13px; font-weight: 700; margin: 2px 0;">⇅ 下标和值对调 · 互为反函数</div>
+
+  <table style="margin: 2px auto 4px; font-size: 14px;">
+    <tr>
+      <th>i (排序后槽号)</th>
+      <td>0</td><td>1</td>
+      <td style="background:#d4f4d8; color:#2d8a4f; font-weight:700">2</td>
+      <td>3</td><td>4</td><td>5</td><td>6</td><td>7</td>
+    </tr>
+    <tr>
+      <th>reorder_ids[i] = j</th>
+      <td>2</td><td>7</td>
+      <td style="background:#d4f4d8; color:#2d8a4f; font-weight:700">0</td>
+      <td>5</td><td>3</td><td>4</td><td>1</td><td>6</td>
+    </tr>
+  </table>
+
+  <div class="callout">
+    💡 <b>顺箭头读 = src2dst（搬运指令）</b>：<code>src2dst[j] = i</code>，原 j 槽的工作要搬到 i 槽。<br>
+    高亮那条就是 <code>src2dst[0]=2</code>：<span class="t0">t0</span>→<span class="e1">e1</span> 这份工作，在左边 j=0，在右边 i=2 —— <b>同一个 chip 两个槽号</b>。<br>
+    pre_reorder 用它"把谁<b>写进 i 槽</b>"；post_reorder 用它"从 <b>i 槽读结果</b>回来"。
+  </div>
+
+  <div class="callout green">
+    🔄 <b>反箭头读 = reorder_ids（反查）</b>：<code>reorder_ids[i] = j</code>，i 槽里坐的是<b>原 j 槽</b>的工作。<br>
+    都是"<b>同一份工作 ↔ 两个槽号</b>"这条事实：<code>src2dst[j] = i</code> ⟺ <code>reorder_ids[i] = j</code>。<br>
+    kernel 实际只用 src2dst；reorder_ids 是 sort 顺手输出、用来"反查 i 槽里是谁"的视角。
+  </div>
+</section>
+
+<!-- 9 闭环：所有索引串起来 -->
+<section class="slide">
+  <h1>🔁 闭环：U 形回路把所有索引串起来</h1>
+  <p>正式看 kernel 之前，先把 <code>src2dst</code>、<code>seg_indptr</code>、<code>reorder_ids</code> 三个索引串成一条 <b>U 形回路</b> —— 顶部去程 ① ② ③，右侧拐弯算完，底部回程 ④ ⑤，token 的旅程就走完了。</p>
+
+  <div class="loop-canvas">
+    <svg class="loop-svg" viewBox="0 0 1000 340">
+      <!-- ① src2dst：tl → tm -->
+      <line x1="244" y1="78" x2="378" y2="78" stroke="#2563eb" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      <polygon points="368,72 380,78 368,84" fill="#2563eb"/>
+      <text x="311" y="64" font-size="13" fill="#1d4ed8" font-family="SF Mono, Menlo, monospace" text-anchor="middle" font-weight="700">① src2dst[j] = i</text>
+
+      <!-- ② seg_indptr：tm → tr -->
+      <line x1="610" y1="78" x2="748" y2="78" stroke="#2563eb" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      <polygon points="738,72 750,78 738,84" fill="#2563eb"/>
+      <text x="679" y="64" font-size="13" fill="#1d4ed8" font-family="SF Mono, Menlo, monospace" text-anchor="middle" font-weight="700">② seg_indptr 落段</text>
+
+      <!-- ③ 算完：tr → br（垂直 U 弯） -->
+      <path d="M 870 124 L 870 218" stroke="#5cc987" stroke-width="3" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="864,208 876,208 870,220" fill="#5cc987"/>
+      <text x="858" y="174" font-size="13" fill="#2d8a4f" font-family="SF Mono, Menlo, monospace" text-anchor="end" font-weight="700">③ 算完</text>
+
+      <!-- ④ reorder_ids：br → bm -->
+      <line x1="748" y1="266" x2="610" y2="266" stroke="#7c3aed" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      <polygon points="620,260 608,266 620,272" fill="#7c3aed"/>
+      <text x="679" y="290" font-size="13" fill="#7c3aed" font-family="SF Mono, Menlo, monospace" text-anchor="middle" font-weight="700">④ reorder_ids[i] = j</text>
+
+      <!-- ⑤ × weight 加权：bm → bl -->
+      <line x1="378" y1="266" x2="244" y2="266" stroke="#7c3aed" stroke-width="2.5" vector-effect="non-scaling-stroke"/>
+      <polygon points="254,260 242,266 254,272" fill="#7c3aed"/>
+      <text x="311" y="290" font-size="13" fill="#7c3aed" font-family="SF Mono, Menlo, monospace" text-anchor="middle" font-weight="700">⑤ × topk_weight, +=</text>
+    </svg>
+
+    <div class="lbox tok tl">
+      <div class="lt">token</div>
+      <div class="lc">hidden_state</div>
+    </div>
+    <div class="lbox slot tm">
+      <div class="lt">槽 i</div>
+      <div class="lc">输入 buffer</div>
+    </div>
+    <div class="lbox gemm tr">
+      <div class="lt">expert</div>
+      <div class="lc">GEMM 批量算</div>
+    </div>
+    <div class="lbox gemm br">
+      <div class="lt">down_output[i]</div>
+      <div class="lc">算完的槽 i</div>
+    </div>
+    <div class="lbox decode bm">
+      <div class="lt">flat j</div>
+      <div class="lc">解码 → token + weight</div>
+    </div>
+    <div class="lbox tok bl">
+      <div class="lt">out[token]</div>
+      <div class="lc">加权累加</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    🎯 <b>具体例子：<span class="t0">t0</span> 经过 <span class="e1">e1</span> 这一圈</b><br>
+    ① <code>src2dst[0]=2</code> → t0 hidden 写到槽 2 　② 槽 2 落在 e1 段 [2,4) → 走 e1 的 GEMM 　③ 结果存到 down_output[2]<br>
+    ④ <code>reorder_ids[2]=0</code> → flat j=0 → <code>0÷2</code>=t0、<code>0%2</code>=第 0 个 topk → weight 0.6 　⑤ <code>out[t0] += 0.6 × down_output[2]</code>
+  </div>
+
+  <div class="callout green">
+    💎 <b>一句话总结</b>：<code>src2dst</code> 是 token 的<b>出门地址</b>，<code>seg_indptr</code> 告诉 expert "你管哪几个槽"，<code>reorder_ids</code> 是槽位的<b>回家地址</b>。三个索引一前一后，<b>槽位夹在中间</b> —— 这就是 MoE 高效执行的全部秘密。<br>
+    <b>接下来三张幻灯片就是 kernel 一步步落地这条 U 形回路。</b>
+  </div>
+</section>
+
+<!-- 10 Step 3 pre_reorder -->
+<section class="slide">
+  <h1>Step 3：pre_reorder（≈ 第一次 All2All）</h1>
+  <p>每个 token 起一个 kernel instance 并行执行：遍历自己的 top_k 个 expert，<b>命中本 rank 的就把 hidden 写进 gateup_input 对应槽位</b>，不在本 rank 的直接跳过。下图是 rank 0（持有 <span class="e0">e0</span>, <span class="e1">e1</span>）的视角。</p>
+
+  <div class="exec-canvas" style="aspect-ratio: 1000 / 500">
+    <svg class="exec-svg" viewBox="0 0 1000 500">
+      <!-- t0 (y=88) → 槽 2 (y=185) -->
+      <path d="M 490 88 C 565 88, 565 185, 640 185" stroke="#5cc987" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="630,179 642,185 630,191" fill="#5cc987"/>
+      <!-- t1 (y=198) → 槽 0 (y=65) -->
+      <path d="M 490 198 C 565 198, 565 65, 640 65" stroke="#4cb8d4" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="630,59 642,65 630,71" fill="#4cb8d4"/>
+      <!-- t2 (y=313) → 槽 3 (y=245) -->
+      <path d="M 490 313 C 565 313, 565 245, 640 245" stroke="#5cc987" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="630,239 642,245 630,251" fill="#5cc987"/>
+      <!-- t3 (y=423) → 槽 1 (y=125) -->
+      <path d="M 490 423 C 565 423, 565 125, 640 125" stroke="#4cb8d4" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="630,119 642,125 630,131" fill="#4cb8d4"/>
+    </svg>
+
+    <div class="ehd" style="left: 2%; top: 1.5%; width: 47%;">⚙️ 4 个 kernel instance（每 token 一个）</div>
+    <div class="ehd" style="left: 65%; top: 1.5%; width: 33%;">📦 rank 0 的 gateup_input</div>
+
+    <!-- 4 个 token 卡（双行文字） -->
+    <div class="ecard tok" style="left: 2%; top: 8%; width: 47%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t0">t0</span></div>
+      <div style="font-size:12.5px"><span class="e1">e1</span> ✓ <code>src2dst[0]=2</code> → 写槽 2 &nbsp;·&nbsp; <span style="color:#7a99c0"><span class="e3">e3</span> ✗ skip</span></div>
+    </div>
+    <div class="ecard tok" style="left: 2%; top: 30%; width: 47%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t1">t1</span></div>
+      <div style="font-size:12.5px"><span class="e0">e0</span> ✓ <code>src2dst[2]=0</code> → 写槽 0 &nbsp;·&nbsp; <span style="color:#7a99c0"><span class="e2">e2</span> ✗ skip</span></div>
+    </div>
+    <div class="ecard tok" style="left: 2%; top: 53%; width: 47%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t2">t2</span></div>
+      <div style="font-size:12.5px"><span style="color:#7a99c0"><span class="e2">e2</span> ✗ skip</span> &nbsp;·&nbsp; <span class="e1">e1</span> ✓ <code>src2dst[5]=3</code> → 写槽 3</div>
+    </div>
+    <div class="ecard tok" style="left: 2%; top: 75%; width: 47%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t3">t3</span></div>
+      <div style="font-size:12.5px"><span style="color:#7a99c0"><span class="e3">e3</span> ✗ skip</span> &nbsp;·&nbsp; <span class="e0">e0</span> ✓ <code>src2dst[7]=1</code> → 写槽 1</div>
+    </div>
+
+    <!-- 8 个 slot -->
+    <div class="ecard slot-e0" style="left: 65%; top:  8%; width: 33%; height: 10%;">槽 0 　<span class="t1">t1</span> · e0 段</div>
+    <div class="ecard slot-e0" style="left: 65%; top: 20%; width: 33%; height: 10%;">槽 1 　<span class="t3">t3</span> · e0 段</div>
+    <div class="ecard slot-e1" style="left: 65%; top: 32%; width: 33%; height: 10%;">槽 2 　<span class="t0">t0</span> · e1 段</div>
+    <div class="ecard slot-e1" style="left: 65%; top: 44%; width: 33%; height: 10%;">槽 3 　<span class="t2">t2</span> · e1 段</div>
+    <div class="ecard slot-empty" style="left: 65%; top: 56%; width: 33%; height: 10%;">槽 4 　e2 段（rank 1 写）</div>
+    <div class="ecard slot-empty" style="left: 65%; top: 68%; width: 33%; height: 10%;">槽 5 　e2 段（rank 1 写）</div>
+    <div class="ecard slot-empty" style="left: 65%; top: 79%; width: 33%; height: 10%;">槽 6 　e3 段（rank 1 写）</div>
+    <div class="ecard slot-empty" style="left: 65%; top: 90%; width: 33%; height: 10%;">槽 7 　e3 段（rank 1 写）</div>
+  </div>
+
+  <div class="callout">
+    💡 弧线 = "把这份 hidden 搬过去"。token 卡只画了<b>命中本 rank</b> 的箭头（每 token 1 条）；另外 4 份（<span class="t0">t0</span>→<span class="e3">e3</span>、<span class="t1">t1</span>→<span class="e2">e2</span>、<span class="t2">t2</span>→<span class="e2">e2</span>、<span class="t3">t3</span>→<span class="e3">e3</span>）此刻在 rank 1 上做同样的事。
+  </div>
+</section>
+
+<!-- 11 Step 4 Group GEMM -->
+<section class="slide">
+  <h1>Step 4：Group GEMM × 2 + SiLU（块对角批量乘）</h1>
+  <p><code>seg_indptr_cur_rank = [0, 2, 4]</code> 告诉 GEMM 每段的边界 → 每个 expert <b>只乘自己那 2 行</b>。槽 4-7 全程未访问，是垃圾但不影响下游。</p>
+
+  <div class="pipeline">
+    <div class="ptensor">
+      <div class="phead">gateup_input</div>
+      <div class="pshape">[8, h]</div>
+      <div class="pblocks">
+        <div class="pblock e0">e0 段<br>2 行 (t1, t3)</div>
+        <div class="pblock e1">e1 段<br>2 行 (t0, t2)</div>
+        <div class="pblock empty">未触碰<br>4 行</div>
+      </div>
+    </div>
+    <div class="parrow">
+      <div class="plabel">① Group GEMM<br>@ w13[e]</div>
+      <div class="pa">→</div>
+    </div>
+    <div class="ptensor">
+      <div class="phead">gateup_output</div>
+      <div class="pshape">[8, 2·I]</div>
+      <div class="pblocks">
+        <div class="pblock e0">e0 段<br>gate ‖ up</div>
+        <div class="pblock e1">e1 段<br>gate ‖ up</div>
+        <div class="pblock empty">垃圾<br>(没算)</div>
+      </div>
+    </div>
+    <div class="parrow">
+      <div class="plabel">② silu(gate)<br>× up</div>
+      <div class="pa">→</div>
+    </div>
+    <div class="ptensor">
+      <div class="phead">down_input</div>
+      <div class="pshape">[8, I]</div>
+      <div class="pblocks">
+        <div class="pblock e0">e0 段<br>激活后</div>
+        <div class="pblock e1">e1 段<br>激活后</div>
+        <div class="pblock empty">垃圾</div>
+      </div>
+    </div>
+    <div class="parrow">
+      <div class="plabel">③ Group GEMM<br>@ w2[e]</div>
+      <div class="pa">→</div>
+    </div>
+    <div class="ptensor">
+      <div class="phead">down_output</div>
+      <div class="pshape">[8, h]</div>
+      <div class="pblocks">
+        <div class="pblock e0">e0 段<br>给 t1, t3 用</div>
+        <div class="pblock e1">e1 段<br>给 t0, t2 用</div>
+        <div class="pblock empty">垃圾<br>(post 不读)</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="callout">
+    🧮 <b>块对角性质</b>：Group GEMM 把 <code>gateup_input[seg_indptr[k]:seg_indptr[k+1]]</code> 和 <code>w13_weight[expert_k]</code> 相乘，写到 <code>gateup_output</code> 对应段。<br>
+    举例：<code>gateup_output[0:2] = gateup_input[0:2] @ w13[e0]</code>，<code>gateup_output[2:4] = gateup_input[2:4] @ w13[e1]</code>。每个 expert 都用自己专属的权重，互不串台。
+  </div>
+
+  <div class="callout green">
+    🎁 <b>kernel fusion 顺手做的事</b>：FP8 路径下 pre_reorder 顺便做了输入量化、silu_and_mul 顺便做了 down_input 的 per-expert 量化 —— 不用额外多读写一遍激活。
+  </div>
+</section>
+
+<!-- 12 Step 5 post_reorder -->
+<section class="slide">
+  <h1>Step 5：post_reorder（≈ 第二次 All2All）</h1>
+  <p>反向：每个 token 起一个 kernel instance，遍历自己 top_k 个 expert，<b>命中本 rank 的就从对应槽读 down_output、乘 topk_weight 累加到 output</b>。这一步只算到"部分和"，剩下的份由 AllReduce 凑齐。</p>
+
+  <div class="exec-canvas" style="aspect-ratio: 1000 / 500">
+    <svg class="exec-svg" viewBox="0 0 1000 500">
+      <!-- 槽 0 (y=68) → t1 card (y=208) -->
+      <path d="M 350 68 C 435 68, 435 208, 520 208" stroke="#4cb8d4" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="510,202 522,208 510,214" fill="#4cb8d4"/>
+      <text x="508" y="200" font-size="12" fill="#1565c0" font-family="SF Mono, Menlo, monospace" font-weight="700" text-anchor="end">× 0.7</text>
+      <!-- 槽 1 (y=123) → t3 card (y=438) -->
+      <path d="M 350 123 C 435 123, 435 438, 520 438" stroke="#4cb8d4" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="510,432 522,438 510,444" fill="#4cb8d4"/>
+      <text x="508" y="428" font-size="12" fill="#1565c0" font-family="SF Mono, Menlo, monospace" font-weight="700" text-anchor="end">× 0.2</text>
+      <!-- 槽 2 (y=178) → t0 card (y=93) -->
+      <path d="M 350 178 C 435 178, 435 93, 520 93" stroke="#5cc987" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="510,87 522,93 510,99" fill="#5cc987"/>
+      <text x="508" y="83" font-size="12" fill="#2d8a4f" font-family="SF Mono, Menlo, monospace" font-weight="700" text-anchor="end">× 0.6</text>
+      <!-- 槽 3 (y=233) → t2 card (y=323) -->
+      <path d="M 350 233 C 435 233, 435 323, 520 323" stroke="#5cc987" stroke-width="2.5" fill="none" vector-effect="non-scaling-stroke"/>
+      <polygon points="510,317 522,323 510,329" fill="#5cc987"/>
+      <text x="508" y="313" font-size="12" fill="#2d8a4f" font-family="SF Mono, Menlo, monospace" font-weight="700" text-anchor="end">× 0.5</text>
+    </svg>
+
+    <div class="ehd" style="left: 2%; top: 1.5%; width: 33%;">📦 down_output（GEMM 算完）</div>
+    <div class="ehd" style="left: 52%; top: 1.5%; width: 46%;">⚙️ kernel 反向累加 → output</div>
+
+    <!-- 8 个 slot 在左侧 -->
+    <div class="ecard slot-e0" style="left: 2%; top:  9%; width: 33%; height: 10%;">槽 0　e0(<span class="t1">t1</span>) 结果</div>
+    <div class="ecard slot-e0" style="left: 2%; top: 20%; width: 33%; height: 10%;">槽 1　e0(<span class="t3">t3</span>) 结果</div>
+    <div class="ecard slot-e1" style="left: 2%; top: 31%; width: 33%; height: 10%;">槽 2　e1(<span class="t0">t0</span>) 结果</div>
+    <div class="ecard slot-e1" style="left: 2%; top: 42%; width: 33%; height: 10%;">槽 3　e1(<span class="t2">t2</span>) 结果</div>
+    <div class="ecard slot-empty" style="left: 2%; top: 53%; width: 33%; height: 10%;">槽 4　垃圾（不读）</div>
+    <div class="ecard slot-empty" style="left: 2%; top: 64%; width: 33%; height: 10%;">槽 5　垃圾</div>
+    <div class="ecard slot-empty" style="left: 2%; top: 75%; width: 33%; height: 10%;">槽 6　垃圾</div>
+    <div class="ecard slot-empty" style="left: 2%; top: 86%; width: 33%; height: 10%;">槽 7　垃圾</div>
+
+    <!-- 4 个 token output 卡在右侧（双行格式） -->
+    <div class="ecard tok" style="left: 52%; top: 9%; width: 46%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t0">out[t0]</span></div>
+      <div style="font-size:12.5px"><b>0.6</b> × down_output[2] &nbsp;·&nbsp; <span style="color:#7a99c0">+ e3 那份在 rank 1</span></div>
+    </div>
+    <div class="ecard tok" style="left: 52%; top: 32%; width: 46%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t1">out[t1]</span></div>
+      <div style="font-size:12.5px"><b>0.7</b> × down_output[0] &nbsp;·&nbsp; <span style="color:#7a99c0">+ e2 那份在 rank 1</span></div>
+    </div>
+    <div class="ecard tok" style="left: 52%; top: 55%; width: 46%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t2">out[t2]</span></div>
+      <div style="font-size:12.5px"><b>0.5</b> × down_output[3] &nbsp;·&nbsp; <span style="color:#7a99c0">+ e2 那份在 rank 1</span></div>
+    </div>
+    <div class="ecard tok" style="left: 52%; top: 78%; width: 46%; height: 19%; flex-direction:column; align-items:flex-start; padding:8px 14px; gap:4px">
+      <div style="font-weight:700"><span class="t3">out[t3]</span></div>
+      <div style="font-size:12.5px"><b>0.2</b> × down_output[1] &nbsp;·&nbsp; <span style="color:#7a99c0">+ e3 那份在 rank 1</span></div>
+    </div>
+  </div>
+
+  <div class="callout red">
+    ⚠️ <b>computed == False 兜底</b>：如果某个 token 的 top_k 个 expert <b>全都不在本 rank</b>（图中没出现，但 top_k 大/EP rank 多时会发生），<b>必须显式写零</b>。否则 output buffer 是未初始化垃圾，下一步 AllReduce 会把垃圾加进去。
+  </div>
+</section>
+
+<!-- 13 Step 6 AllReduce -->
+<section class="slide">
+  <h1>Step 6：AllReduce 把各 rank 的部分和加齐</h1>
+  <p>每张卡现在拿着的是 <b>"我这卡 expert 对每个 token 的部分加权贡献"</b>。一次 <code>AllReduce(SUM)</code> 跨卡把各 rank 的部分和加起来 → 每张卡都拿到完整 output。</p>
+
+  <div class="ar-grid">
+    <div class="ar-th">token</div>
+    <div class="ar-th r0-th">rank 0（持 <span class="e0">e0</span>, <span class="e1">e1</span>）</div>
+    <div class="ar-th-op"></div>
+    <div class="ar-th r1-th">rank 1（持 <span class="e2">e2</span>, <span class="e3">e3</span>）</div>
+    <div class="ar-th-op"></div>
+    <div class="ar-th fin-th">AllReduce 之后</div>
+
+    <div class="ar-tok"><span class="t0">t0</span></div>
+    <div class="ar-cell e1">0.6 × down<sub>e1</sub>(t0)</div>
+    <div class="ar-op">+</div>
+    <div class="ar-cell e3">0.4 × down<sub>e3</sub>(t0)</div>
+    <div class="ar-op">=</div>
+    <div class="ar-cell fin">完整 out[t0] ✓</div>
+
+    <div class="ar-tok"><span class="t1">t1</span></div>
+    <div class="ar-cell e0">0.7 × down<sub>e0</sub>(t1)</div>
+    <div class="ar-op">+</div>
+    <div class="ar-cell e2">0.3 × down<sub>e2</sub>(t1)</div>
+    <div class="ar-op">=</div>
+    <div class="ar-cell fin">完整 out[t1] ✓</div>
+
+    <div class="ar-tok"><span class="t2">t2</span></div>
+    <div class="ar-cell e1">0.5 × down<sub>e1</sub>(t2)</div>
+    <div class="ar-op">+</div>
+    <div class="ar-cell e2">0.5 × down<sub>e2</sub>(t2)</div>
+    <div class="ar-op">=</div>
+    <div class="ar-cell fin">完整 out[t2] ✓</div>
+
+    <div class="ar-tok"><span class="t3">t3</span></div>
+    <div class="ar-cell e0">0.2 × down<sub>e0</sub>(t3)</div>
+    <div class="ar-op">+</div>
+    <div class="ar-cell e3">0.8 × down<sub>e3</sub>(t3)</div>
+    <div class="ar-op">=</div>
+    <div class="ar-cell fin">完整 out[t3] ✓</div>
+  </div>
+
+  <div class="callout green">
+    🌟 <b>关键</b>：AllReduce 一次通信就把所有 rank 的部分和加齐，无需让 token 数据在 rank 间真的搬动。<br>
+    每个 token 完整输出 = 它 top_k 个 expert 各自的加权贡献之和。SGLang 把这 top_k 份贡献<b>分散在不同 rank 上各自计算</b>，最后一次 sum 同步。
+  </div>
+</section>
+
+<!-- 14 核心 trick -->
+<section class="slide">
+  <h1>🎯 核心 trick：用 1 次 AllReduce 换掉 2 次 All2All</h1>
+  <p>训练时 EP 用两次 All2All 在 rank 间搬<b>真实 token 数据</b>；推理时 latency 敏感、All2All 难以和计算 overlap。SGLang 改成 <b>"每卡跑全量 token，最后做一次 AllReduce 加部分和"</b>。</p>
+
+  <div class="ct-panels">
+    <!-- 训练 EP -->
+    <div class="ct-panel train">
+      <div class="ct-title">🔴 训练时的标准 EP　·　2 次 All2All（阻塞通信）</div>
+      <div class="ct-flow">
+        <div class="ct-step">本 rank<br>原始 token</div>
+        <div class="ct-edge">
+          <span class="ct-tag bad">All2All ❶</span>
+          <span class="sub">散到目标 rank</span>
+          <span class="ar">→</span>
+        </div>
+        <div class="ct-step">expert 在<br>本 rank 计算</div>
+        <div class="ct-edge">
+          <span class="ct-tag bad">All2All ❷</span>
+          <span class="sub">结果收回</span>
+          <span class="ar">→</span>
+        </div>
+        <div class="ct-step">回到原 rank<br>得完整结果</div>
+      </div>
+      <div class="ct-note">通信量：两次 All2All 都<b>搬完整 hidden state</b>。训练时能和 backward 重叠掩盖，<b>推理 forward 几乎无 overlap 机会</b>。</div>
+    </div>
+
+    <!-- SGLang EP -->
+    <div class="ct-panel sgl">
+      <div class="ct-title">🟢 SGLang EP（推理）　·　0 次 All2All + 1 次 AllReduce</div>
+      <div class="ct-flow">
+        <div class="ct-step">每卡都<br>看到全量 token</div>
+        <div class="ct-edge">
+          <span class="ct-tag good">本地 reorder</span>
+          <span class="sub">命中算 / 跳过</span>
+          <span class="ar">→</span>
+        </div>
+        <div class="ct-step">本 rank<br>部分加权和</div>
+        <div class="ct-edge">
+          <span class="ct-tag good">AllReduce(SUM)</span>
+          <span class="sub">加齐各 rank 部分</span>
+          <span class="ar">→</span>
+        </div>
+        <div class="ct-step">每卡都拿到<br>完整结果</div>
+      </div>
+      <div class="ct-note">通信量：一次 AllReduce 只搬<b>部分结果</b>（不是 token 本身），更小更同步友好；可与下一层算子 overlap。</div>
+    </div>
+  </div>
+
+  <div class="callout">
+    💰 <b>动机 / 权衡 / 代价</b>　·　<b>动机</b>：推理 latency 敏感，All2All 难 overlap　·　<b>权衡</b>：用更多 flops（每卡跑全量 reorder）+ 一次 AllReduce，换掉两次 All2All　·　<b>代价</b>：每张卡都开 <code>(N × top_k, h)</code> buffer，token 多 / EP rank 多时浪费明显 → 后续 DeepEP 用真 All2All + overlap 进一步优化
+  </div>
+</section>
+
+<!-- 14 设计要点总结 -->
+<section class="slide">
+  <h1>设计要点总结</h1>
+  <table style="font-size:16px; width:100%">
+    <tr>
+      <th style="width:35%">设计</th>
+      <th>为什么</th>
+    </tr>
+    <tr>
+      <td>每张卡开全量 buffer，只写本 rank 部分</td>
+      <td>避免 token 跨卡传输，通信集中到最后一次 AllReduce</td>
+    </tr>
+    <tr>
+      <td>不在本 rank 的 expert 跳过 / 写零</td>
+      <td>让 AllReduce(SUM) 直接得到正确答案</td>
+    </tr>
+    <tr>
+      <td><code>seg_indptr</code> + <code>src2dst</code> 两套索引</td>
+      <td>前者给 Group GEMM（段），后者给 reorder（点对点）</td>
+    </tr>
+    <tr>
+      <td>Pre/post reorder 顺手做量化和加权</td>
+      <td>Kernel fusion，省一次激活的读写</td>
+    </tr>
+    <tr>
+      <td>用 AllReduce 替代两次 All2All</td>
+      <td>推理 latency 敏感，All2All 难以 overlap</td>
+    </tr>
+  </table>
+
+  <h2 style="margin-top:24px">局限</h2>
+  <ul>
+    <li>Group GEMM 当前是 Triton 实现，FlashInfer 路径还没接通 —— 性能有上限</li>
+    <li>Buffer 浪费会随 EP rank 数 / batch 增大而变明显</li>
+    <li>后续 DeepEP 用真正的 All2All + overlap 做了进一步优化</li>
+  </ul>
+</section>
+
+<!-- 15 完 -->
+<section class="slide cover">
+  <h1>The End</h1>
+  <div class="sub">用一次 AllReduce，换两次 All2All</div>
+  <div class="sub" style="margin-top:30px; font-size:16px; color:#4b6fb5">← → 翻页 · F 全屏</div>
+</section>
+
+</div>
+
+<div class="nav"><span id="cur">1</span> / <span id="total">14</span></div>
+<div class="hint">← → 翻页 · 边缘点击翻页 · F 全屏 · Home/End 跳转</div>
+<div class="progress" id="prog" style="width:7.14%"></div>
+
+<script>
+  const slides = document.querySelectorAll('.slide');
+  const total = slides.length;
+  document.getElementById('total').textContent = total;
+  let idx = 0;
+
+  function show(i) {
+    slides[idx].classList.remove('active');
+    idx = Math.max(0, Math.min(total - 1, i));
+    slides[idx].classList.add('active');
+    document.getElementById('cur').textContent = idx + 1;
+    document.getElementById('prog').style.width = ((idx + 1) / total * 100) + '%';
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') { show(idx + 1); e.preventDefault(); }
+    else if (e.key === 'ArrowLeft' || e.key === 'PageUp') { show(idx - 1); e.preventDefault(); }
+    else if (e.key === 'Home') show(0);
+    else if (e.key === 'End') show(total - 1);
+    else if (e.key === 'f' || e.key === 'F') {
+      if (!document.fullscreenElement) document.documentElement.requestFullscreen();
+      else document.exitFullscreen();
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (e.target.closest('a, button, input, textarea')) return;
+    if (window.getSelection().toString()) return; // 选中文本时不翻页
+    const x = e.clientX / window.innerWidth;
+    if (x < 0.12) show(idx - 1);
+    else if (x > 0.88) show(idx + 1);
+  });
+</script>
+</body>
+</html>

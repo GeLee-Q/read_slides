@@ -1,0 +1,2821 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Expert Parallelism in Megatron-LM</title>
+<style>
+:root {
+  --bg: #EFF3F8;
+  --surface: #FFFFFF;
+  --surface2: #E3EAF3;
+  --border: #C4D0DD;
+  --text: #192336;
+  --muted: #546070;
+  --blue: #1A6FE8;
+  --orange: #C4620A;
+  --green: #1A8A44;
+  --red: #C43030;
+  --purple: #6520C2;
+  --yellow: #9A6800;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Segoe UI', 'PingFang SC', 'Microsoft YaHei', sans-serif;
+  overflow: hidden;
+  height: 100vh; width: 100vw;
+  user-select: none;
+}
+#progress {
+  position: fixed; top: 0; left: 0; height: 3px;
+  background: linear-gradient(90deg, var(--blue), var(--purple));
+  transition: width 0.4s ease; z-index: 100;
+}
+#dots {
+  position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%);
+  display: flex; gap: 6px; z-index: 100;
+}
+.dot {
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--border); cursor: pointer;
+  transition: background 0.3s, transform 0.3s;
+}
+.dot.active { background: var(--blue); transform: scale(1.5); }
+#page-num {
+  position: fixed; bottom: 18px; right: 28px;
+  color: var(--muted); font-size: 12px; z-index: 100;
+}
+#nav-hint {
+  position: fixed; bottom: 18px; left: 28px;
+  color: var(--border); font-size: 11px; z-index: 100;
+}
+#slides { position: relative; width: 100%; height: 100%; }
+.slide {
+  position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+  padding: 50px 54px 72px 72px;
+  display: flex; flex-direction: column;
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.35s ease;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(84,96,112,.35) transparent;
+}
+.slide.active { opacity: 1; pointer-events: auto; }
+.slide::-webkit-scrollbar {
+  width: 8px;
+}
+.slide::-webkit-scrollbar-track {
+  background: transparent;
+}
+.slide::-webkit-scrollbar-thumb {
+  background: rgba(84,96,112,.28);
+  border-radius: 999px;
+}
+.slide::-webkit-scrollbar-thumb:hover {
+  background: rgba(84,96,112,.42);
+}
+
+/* Layout helpers */
+.slide-header { margin-bottom: 24px; flex-shrink: 0; }
+.part-label {
+  font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--blue); margin-bottom: 6px;
+}
+h2.sh { font-size: 30px; font-weight: 700; color: var(--text); line-height: 1.25; }
+.subtitle { font-size: 15px; color: var(--muted); margin-top: 6px; }
+.body { flex: 1; display: flex; gap: 32px; min-height: 0; }
+.body.col1 { flex-direction: column; }
+.body.col2 { flex-direction: row; }
+.L, .R { flex: 1; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.L { flex: 0 0 44%; }
+
+/* Cards */
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: 10px;
+  padding: 16px 18px;
+}
+.card.b-blue { border-color: var(--blue); }
+.card.b-green { border-color: var(--green); }
+.card.b-orange { border-color: var(--orange); }
+.card.b-red { border-color: var(--red); }
+.ct {
+  font-size: 11px; font-weight: 600; color: var(--blue);
+  text-transform: uppercase; letter-spacing: 1px; margin-bottom: 9px;
+}
+.ct.orange { color: var(--orange); }
+.ct.green { color: var(--green); }
+.ct.purple { color: var(--purple); }
+.ct.red { color: var(--red); }
+
+/* Bullets */
+ul.bul { list-style: none; padding: 0; }
+ul.bul li {
+  padding: 4px 0 4px 20px; position: relative;
+  font-size: 14px; line-height: 1.6; color: var(--text);
+}
+ul.bul li::before { content: '▸'; position: absolute; left: 0; color: var(--blue); }
+ul.bul li.o::before { color: var(--orange); }
+ul.bul li.g::before { color: var(--green); }
+ul.bul li.r::before { color: var(--red); }
+
+/* Code */
+.code {
+  background: #F5F8FC; border: 1px solid var(--border); border-radius: 7px;
+  padding: 13px 15px;
+  font-family: 'Cascadia Code','Fira Code','Monaco',monospace;
+  font-size: 12px; line-height: 1.75; color: #2C3E50; overflow: auto;
+  white-space: pre-wrap;
+}
+.kw { color: #C0392B; }
+.fn { color: #6C3483; }
+.st { color: #1565C0; }
+.cm { color: #7E8C99; font-style: italic; }
+.num { color: #1A5276; }
+.va { color: #935116; }
+
+/* Highlight boxes */
+.hl {
+  border-left: 3px solid var(--blue); border-radius: 0 7px 7px 0;
+  background: rgba(79,142,247,0.07); padding: 10px 14px; font-size: 14px; line-height: 1.6;
+}
+.hl.o { border-left-color: var(--orange); background: rgba(247,168,79,0.07); }
+.hl.g { border-left-color: var(--green); background: rgba(62,187,122,0.07); }
+
+/* Badges */
+.badge {
+  display: inline-block; padding: 2px 9px; border-radius: 10px;
+  font-size: 11px; font-weight: 600; margin-right: 5px; margin-bottom: 3px;
+}
+.bb { background: rgba(79,142,247,0.15); color: var(--blue); border: 1px solid rgba(79,142,247,0.35); }
+.bo { background: rgba(247,168,79,0.15); color: var(--orange); border: 1px solid rgba(247,168,79,0.35); }
+.bg { background: rgba(62,187,122,0.15); color: var(--green); border: 1px solid rgba(62,187,122,0.35); }
+.bp { background: rgba(192,132,252,0.15); color: var(--purple); border: 1px solid rgba(192,132,252,0.35); }
+
+/* Table */
+.tbl { width: 100%; border-collapse: collapse; font-size: 13px; }
+.tbl th {
+  background: var(--surface2); color: var(--blue);
+  padding: 9px 12px; text-align: left; font-weight: 600;
+  border-bottom: 2px solid var(--border);
+}
+.tbl td { padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.tbl tr:last-child td { border-bottom: none; }
+.tbl tr:hover td { background: var(--surface2); }
+
+/* Formula */
+.formula {
+  font-size: 18px; color: var(--yellow); text-align: center;
+  padding: 12px; background: rgba(180,130,0,0.07); border-radius: 7px;
+  margin: 8px 0;
+}
+
+/* 2-col grid */
+.g2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.g3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; }
+.g4 { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 12px; }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.slide.active .a1 { animation: fadeUp .45s .05s both; }
+.slide.active .a2 { animation: fadeUp .45s .15s both; }
+.slide.active .a3 { animation: fadeUp .45s .25s both; }
+.slide.active .a4 { animation: fadeUp .45s .35s both; }
+.slide.active .a5 { animation: fadeUp .45s .45s both; }
+
+/* Slide 11: GroupedGEMM visual */
+.gg-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(245,248,252,.94) 100%);
+  border: 1px solid rgba(196,208,221,.95);
+  border-radius: 18px;
+  padding: 18px 20px;
+  box-shadow: 0 16px 34px rgba(25,35,54,.06);
+}
+.gg-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.gg-eyebrow {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--orange);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+.gg-title {
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: var(--text);
+}
+.gg-desc {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--muted);
+  margin-top: 6px;
+}
+.gg-pill {
+  flex-shrink: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(247,168,79,.28);
+  background: rgba(247,168,79,.12);
+  color: var(--orange);
+  font-size: 11px;
+  font-weight: 700;
+}
+.gg-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+.gg-chip {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 7px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(196,208,221,.9);
+  background: rgba(255,255,255,.78);
+  color: var(--muted);
+  font-size: 11px;
+}
+.gg-chip strong {
+  color: var(--text);
+  font-size: 11.5px;
+  font-weight: 700;
+}
+.gg-flow {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 12px;
+  padding-left: 56px;
+}
+.gg-flow::before {
+  content: '';
+  position: absolute;
+  left: 19px;
+  top: 8px;
+  bottom: 8px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, rgba(79,142,247,.25) 0%, rgba(247,168,79,.75) 52%, rgba(62,187,122,.32) 100%);
+}
+.gg-step {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: rgba(255,255,255,.84);
+  padding: 12px 14px 12px 16px;
+}
+.gg-step.emph {
+  border-color: rgba(247,168,79,.62);
+  background: linear-gradient(180deg, rgba(247,168,79,.10) 0%, rgba(255,255,255,.94) 100%);
+  box-shadow: inset 0 0 0 1px rgba(247,168,79,.08);
+}
+.gg-step.out {
+  border-color: rgba(62,187,122,.55);
+  background: linear-gradient(180deg, rgba(62,187,122,.10) 0%, rgba(255,255,255,.94) 100%);
+}
+.gg-num {
+  position: absolute;
+  left: -56px;
+  top: 12px;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  background: white;
+  border: 1px solid var(--border);
+  box-shadow: 0 8px 18px rgba(25,35,54,.06);
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+.gg-step.emph .gg-num {
+  border-color: rgba(247,168,79,.44);
+  color: var(--orange);
+}
+.gg-step.out .gg-num {
+  border-color: rgba(62,187,122,.44);
+  color: var(--green);
+}
+.gg-step-title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+.gg-step-title strong {
+  font-size: 14px;
+  color: var(--text);
+}
+.gg-tag {
+  font-size: 10.5px;
+  letter-spacing: .8px;
+  text-transform: uppercase;
+  color: #7A8998;
+}
+.gg-caption {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.gg-bars {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gg-bar {
+  min-width: 0;
+  height: 22px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .1px;
+}
+.gg-bar.blue {
+  flex: 12 1 0;
+  background: linear-gradient(135deg, #82ABFF 0%, #4F8EF7 100%);
+}
+.gg-bar.green {
+  flex: 15 1 0;
+  background: linear-gradient(135deg, #74D6A2 0%, #3EBB7A 100%);
+}
+.gg-bar.soft {
+  opacity: .76;
+}
+.gg-counts {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+.gg-count {
+  min-width: 76px;
+  padding: 5px 0 6px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.gg-count.blue {
+  color: var(--blue);
+  border-color: rgba(79,142,247,.42);
+  background: rgba(79,142,247,.10);
+}
+.gg-count.green {
+  color: var(--green);
+  border-color: rgba(62,187,122,.42);
+  background: rgba(62,187,122,.10);
+}
+.gg-arrow {
+  color: #7A8998;
+  font-size: 11px;
+  font-weight: 600;
+}
+.gg-kernel-row {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto auto;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+}
+.gg-mini {
+  padding: 7px 10px;
+  border-radius: 10px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+.gg-mini.blue {
+  color: var(--blue);
+  border-color: rgba(79,142,247,.32);
+  background: rgba(79,142,247,.11);
+}
+.gg-mini.green {
+  color: var(--green);
+  border-color: rgba(62,187,122,.32);
+  background: rgba(62,187,122,.11);
+}
+.gg-mini.orange {
+  color: var(--orange);
+  border-color: rgba(247,168,79,.35);
+  background: rgba(247,168,79,.12);
+}
+.gg-op {
+  color: #8A9CAA;
+  font-size: 13px;
+  font-weight: 700;
+}
+.gg-foot {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(196,208,221,.95);
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+/* Shared diagram system */
+.diagram-shell {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(245,248,252,.95) 100%);
+  border: 1px solid rgba(196,208,221,.96);
+  border-radius: 20px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 18px 36px rgba(25,35,54,.06);
+}
+.diagram-shell.compact {
+  gap: 10px;
+  padding: 14px 16px 12px;
+}
+.diagram-meta {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+.diagram-kicker {
+  font-size: 11px;
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  color: var(--blue);
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+.diagram-meta strong {
+  display: block;
+  font-size: 19px;
+  line-height: 1.2;
+  color: var(--text);
+}
+.diagram-meta span {
+  display: block;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--muted);
+  margin-top: 5px;
+}
+.diagram-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.diagram-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(196,208,221,.92);
+  background: rgba(255,255,255,.84);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+.diagram-badge::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--blue);
+  flex-shrink: 0;
+}
+.diagram-badge.green::before { background: var(--green); }
+.diagram-badge.orange::before { background: var(--orange); }
+.diagram-badge.purple::before { background: var(--purple); }
+.slide svg {
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(245,248,252,.95) 100%);
+  border: 1px solid rgba(196,208,221,.92);
+  border-radius: 18px;
+  box-shadow: 0 16px 34px rgba(25,35,54,.06);
+}
+.slide .card svg,
+.gg-panel svg,
+.diagram-shell svg {
+  background: none;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+/* Slide 7: clean A2A layout */
+.a2a-scene {
+  padding: 16px 18px 14px;
+}
+.a2a-layout {
+  display: grid;
+  grid-template-columns: 1fr 220px 1fr;
+  gap: 22px;
+  align-items: center;
+}
+.a2a-col {
+  display: grid;
+  gap: 12px;
+}
+.a2a-title {
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #556274;
+  margin-bottom: 2px;
+}
+.a2a-box {
+  --a2a-accent: var(--border);
+  border: 2px solid var(--a2a-accent);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(255,255,255,.98) 0%, rgba(247,250,253,.96) 100%);
+  padding: 11px 14px 13px;
+  box-shadow: 0 10px 24px rgba(25,35,54,.05);
+}
+.a2a-box.blue { --a2a-accent: #4F8EF7; }
+.a2a-box.green { --a2a-accent: #1A8A44; }
+.a2a-box.orange { --a2a-accent: #C4620A; }
+.a2a-box.purple { --a2a-accent: #6520C2; }
+.a2a-head {
+  font-size: 13.5px;
+  font-weight: 800;
+  margin-bottom: 9px;
+}
+.a2a-box.blue .a2a-head { color: var(--blue); }
+.a2a-box.green .a2a-head { color: var(--green); }
+.a2a-box.orange .a2a-head { color: var(--orange); }
+.a2a-box.purple .a2a-head { color: var(--purple); }
+.a2a-chip {
+  display: block;
+  width: 100%;
+  padding: 6px 10px;
+  border-radius: 999px;
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+  line-height: 1;
+}
+.a2a-chip + .a2a-chip {
+  margin-top: 8px;
+}
+.a2a-chip.blue { background: linear-gradient(135deg, #87AEFF 0%, #5E90F2 100%); }
+.a2a-chip.green { background: linear-gradient(135deg, #73D0A0 0%, #4FAA78 100%); }
+.a2a-chip.orange { background: linear-gradient(135deg, #F0B46A 0%, #D6863F 100%); }
+.a2a-chip.purple { background: linear-gradient(135deg, #B48AED 0%, #7A57D3 100%); }
+.a2a-mid {
+  position: relative;
+  border-radius: 18px;
+  border: 2px solid rgba(247,168,79,.92);
+  background: linear-gradient(180deg, rgba(255,249,241,.98) 0%, rgba(255,244,232,.96) 100%);
+  padding: 18px 18px 16px;
+  box-shadow: 0 12px 26px rgba(196,98,10,.08);
+}
+.a2a-mid::before,
+.a2a-mid::after {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--orange);
+  font-size: 22px;
+  font-weight: 700;
+}
+.a2a-mid::before {
+  content: '➜';
+  left: -18px;
+}
+.a2a-mid::after {
+  content: '➜';
+  right: -18px;
+}
+.a2a-mid-title {
+  text-align: center;
+  color: #A05018;
+  font-size: 16px;
+  font-weight: 800;
+  margin-bottom: 8px;
+}
+.a2a-mid-copy {
+  text-align: center;
+  color: var(--muted);
+  font-size: 11.5px;
+  line-height: 1.55;
+  margin-bottom: 12px;
+}
+.a2a-mid-rule {
+  height: 1px;
+  margin: 0 12px 12px;
+  background: rgba(247,168,79,.45);
+}
+.a2a-mid-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  color: #6A7787;
+}
+.a2a-mid-row + .a2a-mid-row {
+  margin-top: 8px;
+}
+.a2a-mid-row strong {
+  color: var(--orange);
+}
+</style>
+</head>
+<body>
+
+<div id="progress"></div>
+<div id="slides">
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 1 — 标题页
+════════════════════════════════════════════════════ -->
+<div class="slide active" id="s1" style="padding:0;background:radial-gradient(ellipse at 22% 55%,#D0E4FF 0%,var(--bg) 58%);">
+  <div style="display:flex;width:100%;height:100%;align-items:stretch;">
+
+    <!-- ── 左栏：文字 ── -->
+    <div style="flex:0 0 46%;display:flex;flex-direction:column;justify-content:center;padding:56px 36px 56px 72px;">
+      <div style="display:flex;align-items:center;gap:10px;font-size:10.5px;letter-spacing:3px;text-transform:uppercase;color:var(--blue);font-weight:700;margin-bottom:22px;">
+        <span style="display:inline-block;width:28px;height:2px;background:var(--blue);border-radius:1px;"></span>
+        Megatron-LM 源码解析系列
+      </div>
+      <div style="font-size:46px;font-weight:800;line-height:1.18;margin-bottom:18px;background:linear-gradient(138deg,#1A6FE8 0%,#6520C2 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">
+        Expert<br>Parallelism<br>in Megatron-LM
+      </div>
+      <div style="font-size:14.5px;color:var(--muted);line-height:1.85;border-left:3px solid rgba(26,111,232,0.28);padding-left:14px;margin-bottom:32px;">
+        从零理解 MoE 专家并行<br>通信原语 · 路由机制 · 工程优化
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:34px;">
+        <div style="display:flex;align-items:center;gap:11px;font-size:13px;color:var(--text);">
+          <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;background:rgba(26,111,232,.09);border:1px solid rgba(26,111,232,.22);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--blue);">①</span>
+          All-to-All 通信原语 &amp; Token 精准路由
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;font-size:13px;color:var(--text);">
+          <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;background:rgba(26,138,68,.09);border:1px solid rgba(26,138,68,.22);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--green);">②</span>
+          GroupedGEMM &amp; Expert 批量计算优化
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;font-size:13px;color:var(--text);">
+          <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;background:rgba(196,98,10,.09);border:1px solid rgba(196,98,10,.22);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--orange);">③</span>
+          7 步 Dispatch 完整流程解析
+        </div>
+        <div style="display:flex;align-items:center;gap:11px;font-size:13px;color:var(--text);">
+          <span style="flex-shrink:0;width:24px;height:24px;border-radius:6px;background:rgba(101,32,194,.09);border:1px solid rgba(101,32,194,.22);display:grid;place-items:center;font-size:11px;font-weight:700;color:var(--purple);">④</span>
+          负载均衡 &amp; 通信计算重叠优化
+        </div>
+      </div>
+      <div style="display:flex;gap:7px;flex-wrap:wrap;">
+        <span class="badge bb">18 张幻灯片</span>
+        <span class="badge bo">All-to-All 通信</span>
+        <span class="badge bg">GroupedGEMM</span>
+        <span class="badge bp">Megatron-LM 源码</span>
+      </div>
+    </div>
+
+    <!-- ── 分隔线 ── -->
+    <div style="flex-shrink:0;width:1px;background:linear-gradient(to bottom,transparent 8%,var(--border) 30%,var(--border) 70%,transparent 92%);"></div>
+
+    <!-- ── 右栏：架构图 ── -->
+    <div style="flex:1;display:flex;align-items:center;justify-content:center;padding:40px 60px 40px 44px;">
+      <div class="diagram-shell a1" style="max-width:560px;">
+        <div class="diagram-meta">
+          <div>
+            <div class="diagram-kicker">EP Layout</div>
+            <strong>Experts on 4 GPUs</strong>
+            <span>每张 GPU 保留完整 Expert，真正跨卡移动的是被 router 选中的 token copies，而不是整块权重。</span>
+          </div>
+        </div>
+        <div class="diagram-badges">
+          <span class="diagram-badge">4 ranks</span>
+          <span class="diagram-badge green">8 experts</span>
+          <span class="diagram-badge orange">All-to-All</span>
+          <span class="diagram-badge purple">2 experts / GPU</span>
+        </div>
+      <svg width="100%" height="100%" viewBox="0 0 460 380" style="max-height:345px;overflow:visible;">
+        <defs>
+          <filter id="cs" x="-8%" y="-8%" width="120%" height="120%">
+            <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(26,35,54,0.10)"/>
+          </filter>
+        </defs>
+
+        <!-- GPU 0 (blue) top-left -->
+        <rect x="14" y="14" width="196" height="154" rx="13" fill="white" stroke="#1A6FE8" stroke-width="1.5" filter="url(#cs)"/>
+        <rect x="14" y="14" width="196" height="36" rx="10" fill="rgba(26,111,232,.1)"/>
+        <rect x="14" y="34" width="196" height="16" fill="rgba(26,111,232,.1)"/>
+        <text x="112" y="37" text-anchor="middle" fill="#1A6FE8" font-size="11" font-weight="700">GPU 0  ·  rank 0</text>
+        <rect x="26" y="62" width="76" height="92" rx="9" fill="rgba(26,111,232,.78)"/>
+        <text x="64" y="112" text-anchor="middle" fill="white" font-size="17" font-weight="800">E0</text>
+        <text x="64" y="128" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="9">FFN</text>
+        <rect x="114" y="62" width="76" height="92" rx="9" fill="rgba(26,111,232,.32)" stroke="#1A6FE8" stroke-width="1"/>
+        <text x="152" y="112" text-anchor="middle" fill="#1A3C7A" font-size="17" font-weight="800">E1</text>
+        <text x="152" y="128" text-anchor="middle" fill="#5A7AB8" font-size="9">FFN</text>
+
+        <!-- GPU 1 (green) top-right -->
+        <rect x="250" y="14" width="196" height="154" rx="13" fill="white" stroke="#1A8A44" stroke-width="1.5" filter="url(#cs)"/>
+        <rect x="250" y="14" width="196" height="36" rx="10" fill="rgba(26,138,68,.1)"/>
+        <rect x="250" y="34" width="196" height="16" fill="rgba(26,138,68,.1)"/>
+        <text x="348" y="37" text-anchor="middle" fill="#1A8A44" font-size="11" font-weight="700">GPU 1  ·  rank 1</text>
+        <rect x="262" y="62" width="76" height="92" rx="9" fill="rgba(26,138,68,.78)"/>
+        <text x="300" y="112" text-anchor="middle" fill="white" font-size="17" font-weight="800">E2</text>
+        <text x="300" y="128" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="9">FFN</text>
+        <rect x="350" y="62" width="76" height="92" rx="9" fill="rgba(26,138,68,.32)" stroke="#1A8A44" stroke-width="1"/>
+        <text x="388" y="112" text-anchor="middle" fill="#1A4A30" font-size="17" font-weight="800">E3</text>
+        <text x="388" y="128" text-anchor="middle" fill="#4A8A60" font-size="9">FFN</text>
+
+        <!-- GPU 2 (orange) bottom-left -->
+        <rect x="14" y="210" width="196" height="154" rx="13" fill="white" stroke="#C4620A" stroke-width="1.5" filter="url(#cs)"/>
+        <rect x="14" y="210" width="196" height="36" rx="10" fill="rgba(196,98,10,.1)"/>
+        <rect x="14" y="230" width="196" height="16" fill="rgba(196,98,10,.1)"/>
+        <text x="112" y="233" text-anchor="middle" fill="#C4620A" font-size="11" font-weight="700">GPU 2  ·  rank 2</text>
+        <rect x="26" y="258" width="76" height="92" rx="9" fill="rgba(196,98,10,.78)"/>
+        <text x="64" y="308" text-anchor="middle" fill="white" font-size="17" font-weight="800">E4</text>
+        <text x="64" y="324" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="9">FFN</text>
+        <rect x="114" y="258" width="76" height="92" rx="9" fill="rgba(196,98,10,.32)" stroke="#C4620A" stroke-width="1"/>
+        <text x="152" y="308" text-anchor="middle" fill="#6A3000" font-size="17" font-weight="800">E5</text>
+        <text x="152" y="324" text-anchor="middle" fill="#8A5020" font-size="9">FFN</text>
+
+        <!-- GPU 3 (purple) bottom-right -->
+        <rect x="250" y="210" width="196" height="154" rx="13" fill="white" stroke="#6520C2" stroke-width="1.5" filter="url(#cs)"/>
+        <rect x="250" y="210" width="196" height="36" rx="10" fill="rgba(101,32,194,.1)"/>
+        <rect x="250" y="230" width="196" height="16" fill="rgba(101,32,194,.1)"/>
+        <text x="348" y="233" text-anchor="middle" fill="#6520C2" font-size="11" font-weight="700">GPU 3  ·  rank 3</text>
+        <rect x="262" y="258" width="76" height="92" rx="9" fill="rgba(101,32,194,.78)"/>
+        <text x="300" y="308" text-anchor="middle" fill="white" font-size="17" font-weight="800">E6</text>
+        <text x="300" y="324" text-anchor="middle" fill="rgba(255,255,255,.7)" font-size="9">FFN</text>
+        <rect x="350" y="258" width="76" height="92" rx="9" fill="rgba(101,32,194,.32)" stroke="#6520C2" stroke-width="1"/>
+        <text x="388" y="308" text-anchor="middle" fill="#3A0A7A" font-size="17" font-weight="800">E7</text>
+        <text x="388" y="324" text-anchor="middle" fill="#6A40A8" font-size="9">FFN</text>
+
+        <!-- All-to-All 连接线 -->
+        <line x1="210" y1="91"  x2="250" y2="91"  stroke="#C4620A" stroke-width="2"   stroke-dasharray="5,3"/>
+        <line x1="210" y1="287" x2="250" y2="287" stroke="#C4620A" stroke-width="2"   stroke-dasharray="5,3"/>
+        <line x1="112" y1="168" x2="112" y2="210" stroke="#C4620A" stroke-width="2"   stroke-dasharray="5,3"/>
+        <line x1="348" y1="168" x2="348" y2="210" stroke="#C4620A" stroke-width="2"   stroke-dasharray="5,3"/>
+        <line x1="210" y1="168" x2="250" y2="210" stroke="#C4620A" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5"/>
+        <line x1="250" y1="168" x2="210" y2="210" stroke="#C4620A" stroke-width="1.5" stroke-dasharray="4,4" opacity="0.5"/>
+
+        <!-- Center A2A pill -->
+        <rect x="197" y="177" width="66" height="22" rx="11" fill="white" stroke="#C4620A" stroke-width="1.5"/>
+        <text x="230" y="192" text-anchor="middle" fill="#C4620A" font-size="10" font-weight="700">All-to-All</text>
+
+        <!-- Animated flow dots -->
+        <circle r="4.5" fill="#1A6FE8" opacity="0.9">
+          <animateMotion dur="2.2s" repeatCount="indefinite" path="M112,168 L112,210"/>
+        </circle>
+        <circle r="4.5" fill="#1A8A44" opacity="0.9">
+          <animateMotion dur="2.2s" begin="0.55s" repeatCount="indefinite" path="M348,210 L348,168"/>
+        </circle>
+        <circle r="4.5" fill="#C4620A" opacity="0.9">
+          <animateMotion dur="2.2s" begin="1.1s" repeatCount="indefinite" path="M210,91 L250,91"/>
+        </circle>
+        <circle r="4.5" fill="#6520C2" opacity="0.9">
+          <animateMotion dur="2.2s" begin="1.65s" repeatCount="indefinite" path="M250,287 L210,287"/>
+        </circle>
+
+        <!-- Caption -->
+        <text x="230" y="374" text-anchor="middle" fill="#546070" font-size="11">num_experts = 8，EP = 4  →  每 GPU 持有 2 个 Expert</text>
+      </svg>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 2 — 为什么需要 MoE？+ Dense vs MoE 对比（合并）
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s2">
+  <div class="slide-header">
+    <div class="part-label">Part 1 — MoE 背景</div>
+    <h2 class="sh">为什么需要 MoE？— Dense vs MoE 对比</h2>
+    <p class="subtitle">参数量 vs 激活量的困境，条件计算思想</p>
+  </div>
+  <div class="body col1">
+    <div style="display:grid;grid-template-columns:40% 27% 33%;gap:20px;flex:1;min-height:0;align-items:start;">
+
+      <!-- 左：文字说明 -->
+      <div class="a1" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="card">
+          <div class="ct">Dense 模型的困境</div>
+          <ul class="bul" style="font-size:13px;">
+            <li>模型越大效果越好，但计算成本随参数量线性增长</li>
+            <li>GPT-3 175B：每 token 激活所有参数 — 极其昂贵</li>
+            <li class="r">扩大参数量 = 直接扩大 FLOPs 开销</li>
+          </ul>
+        </div>
+        <div class="card b-green">
+          <div class="ct green">条件计算（Conditional Computation）</div>
+          <ul class="bul" style="font-size:13px;">
+            <li class="g">核心洞察：不同 token 需要不同"专长"</li>
+            <li>每个 token 只激活一小部分参数</li>
+            <li class="g">参数量↑ 但 FLOPs 不变 → 更高效的扩展</li>
+          </ul>
+        </div>
+        <div class="hl g" style="font-size:13px;">
+          <strong>MoE 价值主张：</strong>用 8× 参数量达到 Dense 效果，每步仅激活 1/8 的专家
+        </div>
+        <!-- 激活参数对比 bar -->
+        <div class="card" style="padding:10px 14px;">
+          <div class="ct" style="margin-bottom:10px;">激活参数占比</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span style="min-width:42px;font-size:11px;color:var(--muted);">Dense</span>
+            <div style="flex:1;height:9px;background:var(--surface2);border-radius:4px;overflow:hidden;">
+              <div style="width:100%;height:100%;background:rgba(196,48,48,.55);border-radius:4px;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--text);min-width:36px;text-align:right;">100%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="min-width:42px;font-size:11px;color:var(--muted);">MoE</span>
+            <div style="flex:1;height:9px;background:var(--surface2);border-radius:4px;overflow:hidden;">
+              <div style="width:12.5%;height:100%;background:rgba(26,138,68,.65);border-radius:4px;"></div>
+            </div>
+            <span style="font-size:11px;color:var(--green);min-width:36px;text-align:right;">12.5%</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 中：Dense FFN 卡片 -->
+      <div class="a2" style="display:flex;">
+        <svg width="100%" viewBox="0 0 260 175" style="display:block;overflow:visible;height:100%;">
+          <defs>
+            <filter id="flt-d" x="-10%" y="-10%" width="125%" height="125%">
+              <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(26,35,54,0.10)"/>
+            </filter>
+            <linearGradient id="grad-d" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#F77E72"/>
+              <stop offset="100%" stop-color="#C43030"/>
+            </linearGradient>
+          </defs>
+          <!-- Card -->
+          <rect x="2" y="2" width="256" height="171" rx="13" fill="white" stroke="rgba(196,48,48,.22)" stroke-width="1.5" filter="url(#flt-d)"/>
+          <!-- Header band -->
+          <rect x="2" y="2" width="256" height="40" rx="13" fill="rgba(196,48,48,.05)"/>
+          <rect x="2" y="30" width="256" height="12" fill="rgba(196,48,48,.05)"/>
+          <text x="14" y="24" fill="#A83838" font-size="8" font-weight="700">Dense FFN</text>
+          <text x="14" y="35" fill="#A83838" font-size="6.5" opacity="0.65">全部神经元均被激活</text>
+          <text x="244" y="22" text-anchor="end" fill="#A83838" font-size="12" font-weight="700">100%</text>
+          <text x="244" y="33" text-anchor="end" fill="#A83838" font-size="6.5" opacity="0.6">激活率</text>
+          <!-- Row 1: 3 active neuron blocks (54×44, muted red) -->
+          <rect x="40" y="48" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="67" y="69" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N1</text>
+          <text x="67" y="77" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <rect x="102" y="48" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="129" y="69" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N2</text>
+          <text x="129" y="77" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <rect x="164" y="48" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="191" y="69" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N3</text>
+          <text x="191" y="77" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <!-- Row 2: 3 active neuron blocks (54×44) -->
+          <rect x="40" y="100" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="67" y="121" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N4</text>
+          <text x="67" y="129" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <rect x="102" y="100" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="129" y="121" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N5</text>
+          <text x="129" y="129" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <rect x="164" y="100" width="54" height="44" rx="8" fill="rgba(196,48,48,.50)"/>
+          <text x="191" y="121" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="600">N6</text>
+          <text x="191" y="129" text-anchor="middle" fill="rgba(255,255,255,.55)" font-size="5.5">激活</text>
+          <!-- Bottom label -->
+          <line x1="14" y1="152" x2="244" y2="152" stroke="rgba(196,48,48,.10)" stroke-width="1"/>
+          <text x="130" y="161" text-anchor="middle" fill="#6A7A88" font-size="7">d_model → FFN hidden → d_model</text>
+          <text x="130" y="170" text-anchor="middle" fill="#A83838" font-size="6" opacity="0.75">全部激活 — 无差别计算</text>
+        </svg>
+      </div>
+
+      <!-- 右：MoE FFN 卡片 -->
+      <div class="a3" style="display:flex;">
+        <svg width="100%" viewBox="0 0 280 200" style="display:block;overflow:visible;height:100%;">
+          <defs>
+            <filter id="flt-m" x="-10%" y="-10%" width="125%" height="125%">
+              <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(26,35,54,0.10)"/>
+            </filter>
+            <linearGradient id="grad-m" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stop-color="#4ACC85"/>
+              <stop offset="100%" stop-color="#1A8A44"/>
+            </linearGradient>
+          </defs>
+          <!-- Card -->
+          <rect x="2" y="2" width="276" height="196" rx="13" fill="white" stroke="rgba(26,138,68,.22)" stroke-width="1.5" filter="url(#flt-m)"/>
+          <!-- Header band -->
+          <rect x="2" y="2" width="276" height="40" rx="13" fill="rgba(26,138,68,.05)"/>
+          <rect x="2" y="30" width="276" height="12" fill="rgba(26,138,68,.05)"/>
+          <text x="14" y="24" fill="#28794A" font-size="8" font-weight="700">MoE FFN</text>
+          <text x="14" y="35" fill="#28794A" font-size="6.5" opacity="0.65">Top-2 路由，仅激活 2 个 Expert</text>
+          <text x="264" y="22" text-anchor="end" fill="#28794A" font-size="12" font-weight="700">25%</text>
+          <text x="264" y="33" text-anchor="end" fill="#28794A" font-size="6.5" opacity="0.6">激活率</text>
+          <text x="264" y="44" text-anchor="end" fill="#A05018" font-size="6.5" font-weight="600">FLOPs ↓75%</text>
+          <!-- Gate/Router pill -->
+          <rect x="90" y="50" width="100" height="20" rx="10" fill="rgba(154,104,0,.08)" stroke="rgba(154,104,0,.45)" stroke-width="1.2"/>
+          <text x="140" y="64" text-anchor="middle" fill="#7A5800" font-size="7" font-weight="600">Gate · Router</text>
+          <!-- Routing arrows -->
+          <line x1="128" y1="70" x2="112" y2="82" stroke="rgba(26,138,68,.55)" stroke-width="1.2" stroke-dasharray="5,3"/>
+          <line x1="152" y1="70" x2="220" y2="136" stroke="rgba(26,138,68,.55)" stroke-width="1.2" stroke-dasharray="5,3"/>
+          <!-- Expert grid row 1 — blocks 46×46 -->
+          <rect x="35"  y="82" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="58"  y="103" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E0</text>
+          <text x="58"  y="112" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <rect x="89"  y="82" width="46" height="46" rx="8" fill="rgba(26,138,68,.52)" stroke="rgba(26,138,68,.4)" stroke-width="1.2"/>
+          <text x="112" y="103" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="700">E1</text>
+          <text x="112" y="112" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="5.5">激活 ✓</text>
+          <rect x="143" y="82" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="166" y="103" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E2</text>
+          <text x="166" y="112" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <rect x="197" y="82" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="220" y="103" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E3</text>
+          <text x="220" y="112" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <!-- Expert grid row 2 -->
+          <rect x="35"  y="136" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="58"  y="157" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E4</text>
+          <text x="58"  y="166" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <rect x="89"  y="136" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="112" y="157" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E5</text>
+          <text x="112" y="166" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <rect x="143" y="136" width="46" height="46" rx="8" fill="rgba(164,184,200,.10)" stroke="rgba(164,184,200,.5)" stroke-width="1"/>
+          <text x="166" y="157" text-anchor="middle" fill="#8A9CAA" font-size="6.5" font-weight="600">E6</text>
+          <text x="166" y="166" text-anchor="middle" fill="#B0C0CC" font-size="5.5">休眠</text>
+          <rect x="197" y="136" width="46" height="46" rx="8" fill="rgba(26,138,68,.52)" stroke="rgba(26,138,68,.4)" stroke-width="1.2"/>
+          <text x="220" y="157" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="6.5" font-weight="700">E7</text>
+          <text x="220" y="166" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="5.5">激活 ✓</text>
+          <!-- Bottom label -->
+          <line x1="14" y1="188" x2="264" y2="188" stroke="rgba(26,138,68,.10)" stroke-width="1"/>
+          <text x="140" y="196" text-anchor="middle" fill="#6A7A88" font-size="7">8 Experts，每步仅激活 top-2  ·  参数量 8× · FLOPs ≈ 25%</text>
+        </svg>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 3 — Expert 是什么？& Top-K 路由机制（合并）
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s3">
+  <div class="slide-header">
+    <div class="part-label">Part 1 — MoE 背景</div>
+    <h2 class="sh">Expert 是什么？&amp; Top-K 路由机制</h2>
+    <p class="subtitle">Expert = FFN，门控路由决定每个 token 的计算路径</p>
+  </div>
+  <div class="body col1">
+    <div style="display:grid;grid-template-columns:29% 35% 36%;gap:18px;flex:1;min-height:0;align-items:stretch;">
+
+      <!-- ── 左：Expert 本质 + 配置 ── -->
+      <div class="a1" style="display:flex;flex-direction:column;gap:11px;">
+        <div class="card">
+          <div class="ct">Expert 的本质</div>
+          <ul class="bul" style="font-size:13px;">
+            <li>Expert = 标准 <strong style="color:var(--blue)">FFN</strong>（两个线性层）</li>
+            <li><code style="color:var(--orange);font-size:11px;">Linear(d_model → ffn_hidden)</code></li>
+            <li><code style="color:var(--orange);font-size:11px;">Linear(ffn_hidden → d_model)</code></li>
+            <li>每个 token 仅激活 top-K 个 expert（K=2）</li>
+          </ul>
+        </div>
+        <div class="code" style="font-size:11px;line-height:1.85;">
+<span class="cm"># Megatron-LM MoE 关键参数</span>
+--<span class="va">num-experts</span>
+    <span class="num">8</span>         <span class="cm"># Expert 总数</span>
+--<span class="va">moe-router-topk</span>
+    <span class="num">2</span>         <span class="cm"># 每 token 激活 K 个</span>
+--<span class="va">moe-ffn-hidden-size</span>
+    <span class="num">4096</span>      <span class="cm"># Expert FFN 宽度</span>
+--<span class="va">moe-shared-expert-intermediate-size</span>
+    <span class="num">2048</span>      <span class="cm"># 共享专家（始终激活）</span>
+        </div>
+        <div class="hl" style="font-size:12px;">
+          <strong>Shared Expert</strong>：永远激活，不参与路由，处理通用语义；路由专家处理特化信息
+        </div>
+      </div>
+
+      <!-- ── 中：MoE Layer 结构（填满列宽） ── -->
+      <div class="a2" style="display:flex;align-items:center;justify-content:center;">
+        <svg width="100%" viewBox="0 0 280 290" style="display:block;overflow:visible;">
+          <defs>
+            <filter id="flt-l" x="-10%" y="-10%" width="125%" height="125%">
+              <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(26,35,54,0.08)"/>
+            </filter>
+          </defs>
+          <!-- Card background -->
+          <rect x="2" y="2" width="276" height="285" rx="13" fill="white" stroke="rgba(26,111,232,.16)" stroke-width="1.5" filter="url(#flt-l)"/>
+          <!-- Header band -->
+          <rect x="2" y="2" width="276" height="34" rx="13" fill="rgba(26,111,232,.05)"/>
+          <rect x="2" y="24" width="276" height="12" fill="rgba(26,111,232,.05)"/>
+          <text x="140" y="23" text-anchor="middle" fill="#4070B8" font-size="7.5" font-weight="600">MoE Layer 完整结构</text>
+          <!-- Input Token -->
+          <rect x="80" y="46" width="120" height="24" rx="6" fill="rgba(79,142,247,.12)" stroke="rgba(79,142,247,.45)" stroke-width="1.2"/>
+          <text x="140" y="62" text-anchor="middle" fill="#4070B8" font-size="7.5" font-weight="600">Input Token</text>
+          <!-- Arrow down -->
+          <line x1="140" y1="70" x2="140" y2="82" stroke="#C0CCD8" stroke-width="1.4"/>
+          <polygon points="136,82 144,82 140,88" fill="#C0CCD8"/>
+          <!-- Gate/Router -->
+          <rect x="72" y="88" width="136" height="22" rx="11" fill="rgba(154,104,0,.07)" stroke="rgba(154,104,0,.40)" stroke-width="1.2"/>
+          <text x="140" y="103" text-anchor="middle" fill="#7A5800" font-size="7" font-weight="600">Gate / Router</text>
+          <!-- Branch lines -->
+          <line x1="86"  y1="110" x2="36"  y2="132" stroke="rgba(101,32,194,.45)" stroke-width="1.2" stroke-dasharray="5,3"/>
+          <line x1="122" y1="110" x2="108" y2="132" stroke="rgba(26,138,68,.50)"  stroke-width="1.2" stroke-dasharray="5,3"/>
+          <line x1="158" y1="110" x2="172" y2="132" stroke="#D8E0E8"               stroke-width="1"   stroke-dasharray="3,2"/>
+          <line x1="200" y1="110" x2="240" y2="132" stroke="rgba(26,138,68,.50)"  stroke-width="1.2" stroke-dasharray="5,3"/>
+          <!-- Shared Expert -->
+          <rect x="4" y="132" width="66" height="64" rx="9" fill="rgba(101,32,194,.05)" stroke="rgba(101,32,194,.35)" stroke-width="1.2" stroke-dasharray="5,3"/>
+          <text x="37" y="156" text-anchor="middle" fill="rgba(101,32,194,.75)" font-size="7" font-weight="600">Shared</text>
+          <text x="37" y="166" text-anchor="middle" fill="rgba(101,32,194,.75)" font-size="7" font-weight="600">Expert</text>
+          <text x="37" y="177" text-anchor="middle" fill="rgba(101,32,194,.50)" font-size="5.5">始终激活</text>
+          <!-- E1 active -->
+          <rect x="78" y="132" width="58" height="64" rx="9" fill="rgba(26,138,68,.50)" stroke="rgba(26,138,68,.35)" stroke-width="1.5"/>
+          <text x="107" y="162" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="7.5" font-weight="700">E1</text>
+          <text x="107" y="172" text-anchor="middle" fill="rgba(255,255,255,.62)" font-size="5.5">FFN · 激活</text>
+          <!-- E2 sleep -->
+          <rect x="144" y="132" width="58" height="64" rx="9" fill="rgba(164,184,200,.08)" stroke="rgba(164,184,200,.45)" stroke-width="1" stroke-dasharray="4,3"/>
+          <text x="173" y="162" text-anchor="middle" fill="#A0B4C0" font-size="7.5" font-weight="500">E2</text>
+          <text x="173" y="172" text-anchor="middle" fill="#C0D0D8" font-size="5.5">休眠</text>
+          <!-- E6 active -->
+          <rect x="210" y="132" width="64" height="64" rx="9" fill="rgba(26,138,68,.50)" stroke="rgba(26,138,68,.35)" stroke-width="1.5"/>
+          <text x="242" y="162" text-anchor="middle" fill="rgba(255,255,255,.95)" font-size="7.5" font-weight="700">E6</text>
+          <text x="242" y="172" text-anchor="middle" fill="rgba(255,255,255,.62)" font-size="5.5">FFN · 激活</text>
+          <!-- Others hint -->
+          <text x="140" y="210" text-anchor="middle" fill="#C4D0D8" font-size="7">⋯ E3 E4 E5 E7（休眠）⋯</text>
+          <!-- Merge lines -->
+          <line x1="37"  y1="196" x2="140" y2="220" stroke="rgba(101,32,194,.35)" stroke-width="1"/>
+          <line x1="107" y1="196" x2="140" y2="220" stroke="rgba(26,138,68,.40)"  stroke-width="1"/>
+          <line x1="242" y1="196" x2="140" y2="220" stroke="rgba(26,138,68,.40)"  stroke-width="1"/>
+          <!-- Output box -->
+          <rect x="80" y="220" width="120" height="24" rx="6" fill="rgba(79,142,247,.10)" stroke="rgba(79,142,247,.40)" stroke-width="1.2"/>
+          <text x="140" y="236" text-anchor="middle" fill="#4070B8" font-size="7.5" font-weight="600">加权聚合输出</text>
+          <!-- Legend row -->
+          <rect x="16"  y="254" width="7" height="7" rx="2" fill="rgba(26,138,68,.52)" stroke="rgba(26,138,68,.4)"/>
+          <text x="26"  y="261" fill="#6A7A88" font-size="6">路由激活</text>
+          <rect x="90"  y="254" width="7" height="7" rx="2" fill="rgba(101,32,194,.10)" stroke="rgba(101,32,194,.35)" stroke-dasharray="3,2"/>
+          <text x="100" y="261" fill="#6A7A88" font-size="6">Shared 常驻</text>
+          <rect x="180" y="254" width="7" height="7" rx="2" fill="rgba(164,184,200,.12)" stroke="rgba(164,184,200,.5)"/>
+          <text x="190" y="261" fill="#6A7A88" font-size="6">休眠</text>
+          <!-- Source -->
+          <text x="140" y="278" text-anchor="middle" fill="#C4D0D8" font-size="7">moe/moe_layer.py</text>
+        </svg>
+      </div>
+
+      <!-- ── 右：Top-K 路由步骤（紧凑版） ── -->
+      <div class="a3" style="display:flex;align-items:center;justify-content:center;">
+        <svg width="100%" viewBox="0 0 280 290" style="display:block;overflow:visible;">
+          <defs>
+            <filter id="flt-r3" x="-10%" y="-10%" width="125%" height="125%">
+              <feDropShadow dx="0" dy="2" stdDeviation="5" flood-color="rgba(26,35,54,0.08)"/>
+            </filter>
+          </defs>
+          <!-- Card background -->
+          <rect x="2" y="2" width="276" height="285" rx="13" fill="white" stroke="rgba(196,98,10,.16)" stroke-width="1.5" filter="url(#flt-r3)"/>
+          <!-- Header band -->
+          <rect x="2" y="2" width="276" height="34" rx="13" fill="rgba(196,98,10,.05)"/>
+          <rect x="2" y="24" width="276" height="12" fill="rgba(196,98,10,.05)"/>
+          <text x="140" y="22" text-anchor="middle" fill="#A05018" font-size="7.5" font-weight="600">Top-K Router 示例</text>
+
+          <!-- Input token -->
+          <rect x="82" y="46" width="116" height="22" rx="11" fill="rgba(79,142,247,.12)" stroke="rgba(79,142,247,.42)" stroke-width="1.2"/>
+          <text x="140" y="60" text-anchor="middle" fill="#3A5AA8" font-size="7.5" font-weight="600">单个 Token 输入</text>
+          <line x1="140" y1="68" x2="140" y2="78" stroke="#C0CCD8" stroke-width="1.4"/>
+          <polygon points="136,78 144,78 140,84" fill="#C0CCD8"/>
+
+          <!-- W_gate -->
+          <rect x="70" y="84" width="140" height="20" rx="10" fill="rgba(154,104,0,.08)" stroke="rgba(154,104,0,.40)" stroke-width="1.2"/>
+          <text x="140" y="97" text-anchor="middle" fill="#7A5800" font-size="7" font-weight="600">W_gate + Softmax</text>
+
+          <!-- Prob bars area -->
+          <rect x="18" y="114" width="244" height="58" rx="8" fill="rgba(245,248,252,.9)" stroke="rgba(196,98,10,.14)" stroke-width="1"/>
+          <text x="140" y="127" text-anchor="middle" fill="#6A7A88" font-size="6.8">scores [1 × 8] 概率分布</text>
+          <rect x="30"  y="152" width="18" height="8"  rx="2" fill="rgba(164,184,200,.35)"/>
+          <rect x="56"  y="124" width="18" height="36" rx="2" fill="rgba(26,138,68,.78)"/>
+          <rect x="82"  y="147" width="18" height="13" rx="2" fill="rgba(164,184,200,.35)"/>
+          <rect x="108" y="134" width="18" height="26" rx="2" fill="rgba(164,184,200,.35)"/>
+          <rect x="134" y="152" width="18" height="8"  rx="2" fill="rgba(164,184,200,.35)"/>
+          <rect x="160" y="129" width="18" height="31" rx="2" fill="rgba(26,138,68,.78)"/>
+          <rect x="186" y="152" width="18" height="8"  rx="2" fill="rgba(164,184,200,.35)"/>
+          <rect x="212" y="142" width="18" height="18" rx="2" fill="rgba(164,184,200,.35)"/>
+          <text x="65"  y="120" text-anchor="middle" fill="#1A8A44" font-size="7" font-weight="700">29%</text>
+          <text x="169" y="125" text-anchor="middle" fill="#1A8A44" font-size="7" font-weight="700">24%</text>
+          <text x="39"  y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E0</text>
+          <text x="65"  y="168" text-anchor="middle" fill="#1A8A44" font-size="6.5" font-weight="700">E1</text>
+          <text x="91"  y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E2</text>
+          <text x="117" y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E3</text>
+          <text x="143" y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E4</text>
+          <text x="169" y="168" text-anchor="middle" fill="#1A8A44" font-size="6.5" font-weight="700">E5</text>
+          <text x="195" y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E6</text>
+          <text x="221" y="168" text-anchor="middle" fill="#A0B0C0" font-size="6.5">E7</text>
+
+          <!-- Top-2 winners -->
+          <line x1="140" y1="176" x2="140" y2="186" stroke="#C0CCD8" stroke-width="1.4"/>
+          <polygon points="136,186 144,186 140,192" fill="#C0CCD8"/>
+          <text x="140" y="198" text-anchor="middle" fill="#6A7A88" font-size="6.8">Top-2 选取结果</text>
+          <rect x="46" y="204" width="84" height="28" rx="8" fill="rgba(26,138,68,.12)" stroke="rgba(26,138,68,.34)" stroke-width="1.2"/>
+          <text x="88" y="221" text-anchor="middle" fill="#1A8A44" font-size="8" font-weight="700">E1  ·  29%</text>
+          <rect x="150" y="204" width="84" height="28" rx="8" fill="rgba(26,138,68,.12)" stroke="rgba(26,138,68,.34)" stroke-width="1.2"/>
+          <text x="192" y="221" text-anchor="middle" fill="#1A8A44" font-size="8" font-weight="700">E5  ·  24%</text>
+
+          <!-- routing_map row -->
+          <line x1="140" y1="232" x2="140" y2="242" stroke="#C0CCD8" stroke-width="1.4"/>
+          <polygon points="136,242 144,242 140,248" fill="#C0CCD8"/>
+          <text x="140" y="253" text-anchor="middle" fill="#6A7A88" font-size="6.8">routing_map 的一行 [1 × 8]</text>
+
+          <rect x="18"  y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="31"  y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+          <rect x="48"  y="258" width="26" height="18" rx="3" fill="rgba(26,138,68,.72)" stroke="#1A8A44" stroke-width="1.4"/>
+          <text x="61"  y="270" text-anchor="middle" fill="white" font-size="8" font-weight="700">T</text>
+          <rect x="78"  y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="91"  y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+          <rect x="108" y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="121" y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+          <rect x="138" y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="151" y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+          <rect x="168" y="258" width="26" height="18" rx="3" fill="rgba(26,138,68,.72)" stroke="#1A8A44" stroke-width="1.4"/>
+          <text x="181" y="270" text-anchor="middle" fill="white" font-size="8" font-weight="700">T</text>
+          <rect x="198" y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="211" y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+          <rect x="228" y="258" width="26" height="18" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+          <text x="241" y="270" text-anchor="middle" fill="#A0B0C0" font-size="8">F</text>
+
+          <text x="140" y="285" text-anchor="middle" fill="#C4D0D8" font-size="7">router.py · 仅 E1 / E5 为 True</text>
+        </svg>
+      </div><!-- /右列 -->
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 4 — 专家崩溃与负载均衡
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s4">
+  <div class="slide-header">
+    <div class="part-label">Part 1 — MoE 背景</div>
+    <h2 class="sh">专家崩溃与辅助负载均衡损失</h2>
+    <p class="subtitle">L_aux 通过同时惩罚"实际偏斜"与"期望偏斜"，迫使路由趋向均匀</p>
+  </div>
+  <div class="body col2" style="gap:18px;">
+
+    <!-- ── 左：文字解释 ── -->
+    <div class="L" style="gap:12px;">
+      <div class="card b-red a1">
+        <div class="ct red">专家崩溃（Expert Collapse）</div>
+        <ul class="bul" style="font-size:13px;">
+          <li>训练初期某 expert 偶然获得更多 token</li>
+          <li>梯度更新让它变"更强"→ 吸引更多 token → 恶性循环</li>
+          <li class="r">最终退化：所有 token 只去一个 expert = Dense FFN</li>
+        </ul>
+      </div>
+
+      <div class="card a2">
+        <div class="ct">辅助负载均衡损失 L_aux</div>
+        <div class="formula" style="font-size:16px;margin:8px 0;">L<sub>aux</sub> = α · Σ<sub>i</sub> <span style="color:var(--orange)">f<sub>i</sub></span> · <span style="color:var(--blue)">P<sub>i</sub></span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;font-size:12.5px;">
+          <div style="background:rgba(196,98,10,.07);border-radius:6px;padding:8px 10px;">
+            <div style="color:var(--orange);font-weight:700;margin-bottom:3px;">fᵢ — 实际负载</div>
+            <div style="color:var(--muted);">该 expert 实际接收的 token 比例<br><code style="font-size:10px;">= routing_map.mean(dim=0)</code></div>
+          </div>
+          <div style="background:rgba(26,111,232,.07);border-radius:6px;padding:8px 10px;">
+            <div style="color:var(--blue);font-weight:700;margin-bottom:3px;">Pᵢ — 期望负载</div>
+            <div style="color:var(--muted);">router 分配给该 expert 的平均概率<br><code style="font-size:10px;">= scores.mean(dim=0)</code></div>
+          </div>
+        </div>
+        <div class="hl" style="font-size:12px;margin-top:10px;">
+          <strong>关键洞察：</strong>fᵢ 和 Pᵢ 同时偏高（同一 expert 主导）时，乘积最大，损失最高 → 梯度反向推均匀化
+        </div>
+        <div style="font-size:12px;color:var(--muted);margin-top:8px;">
+          均匀时：L_aux = N · (1/N)·(1/N) = <strong style="color:var(--green);">1/N（最小）</strong><br>
+          崩溃时：L_aux → f<sub>max</sub>·P<sub>max</sub> ≈ <strong style="color:var(--red);">1（最大）</strong>
+        </div>
+      </div>
+
+      <div class="code a3" style="font-size:11px;"><span class="cm"># router.py: aux_loss_func()</span>
+<span class="va">tokens_per_expert</span> = routing_map.<span class="fn">float</span>().<span class="fn">mean</span>(dim=<span class="num">0</span>)
+<span class="cm"># fᵢ：每个 expert 实际接收的 token 比例 [num_experts]</span>
+<span class="va">router_prob_per_expert</span> = scores.<span class="fn">mean</span>(dim=<span class="num">0</span>)
+<span class="cm"># Pᵢ：router 分配给每个 expert 的平均概率 [num_experts]</span>
+<span class="va">aux_loss</span> = <span class="fn">dot</span>(tokens_per_expert, router_prob_per_expert)
+<span class="cm"># 最终损失 = α · Σ(fᵢ·Pᵢ)，加入总 loss</span>
+      </div>
+    </div>
+
+    <!-- ── 右：可视化 ── -->
+    <div class="R a4" style="gap:8px;">
+
+      <!-- SVG 1: fᵢ·Pᵢ 机制（含标题头） -->
+      <svg width="100%" viewBox="0 0 420 148" style="display:block;overflow:visible;">
+        <defs>
+          <filter id="flt-c1" x="-5%" y="-5%" width="115%" height="115%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(26,35,54,0.07)"/>
+          </filter>
+        </defs>
+        <!-- Card -->
+        <rect x="1" y="1" width="418" height="146" rx="10" fill="white" stroke="rgba(164,184,200,.28)" stroke-width="1" filter="url(#flt-c1)"/>
+        <!-- Header band -->
+        <rect x="1" y="1" width="418" height="24" rx="10" fill="rgba(196,98,10,.05)"/>
+        <rect x="1" y="16" width="418" height="9"  fill="rgba(196,98,10,.05)"/>
+        <text x="140" y="17" text-anchor="middle" fill="#6A7A88" font-size="7" font-weight="600">崩溃时 fᵢ·Pᵢ 为何大？</text>
+        <!-- Legend -->
+        <rect x="14" y="28" width="6" height="6" rx="1" fill="rgba(196,98,10,.58)"/>
+        <text x="23" y="34" fill="#6A7A88" font-size="6">fᵢ（实际 token 比例）</text>
+        <rect x="136" y="28" width="6" height="6" rx="1" fill="rgba(26,111,232,.42)"/>
+        <text x="145" y="34" fill="#6A7A88" font-size="6">Pᵢ（router 概率）</text>
+        <text x="305" y="34" fill="#8A9CAA" font-size="5.5">↑ fᵢ·Pᵢ 越大损失越高</text>
+        <!-- Baseline -->
+        <line x1="12" y1="110" x2="340" y2="110" stroke="#D8E0E8" stroke-width="1"/>
+        <!-- E0: tiny -->
+        <rect x="22"  y="106" width="18" height="4" rx="1" fill="rgba(196,98,10,.50)"/>
+        <rect x="42"  y="107" width="18" height="3" rx="1" fill="rgba(26,111,232,.38)"/>
+        <text x="41"  y="118" text-anchor="middle" fill="#6A7A88" font-size="6">E0</text>
+        <text x="41"  y="125" text-anchor="middle" fill="#A0B0C0" font-size="5.5">f·P≈0</text>
+        <!-- E1: BIG, highlighted -->
+        <rect x="104" y="60" width="18" height="50" rx="2" fill="rgba(196,98,10,.55)"/>
+        <rect x="124" y="63" width="18" height="47" rx="2" fill="rgba(26,111,232,.42)"/>
+        <text x="115" y="118" text-anchor="middle" fill="#A83838" font-size="6.5" font-weight="700">E1 ⚡</text>
+        <text x="115" y="125" text-anchor="middle" fill="#A83838" font-size="5.5" font-weight="600">f·P≈0.48</text>
+        <text x="101" y="56"  fill="#A83838" font-size="5.5">f=70%</text>
+        <text x="122" y="56"  fill="#4070B8" font-size="5.5">P=68%</text>
+        <rect x="96" y="52" width="52" height="64" rx="4" fill="none" stroke="rgba(196,48,48,.28)" stroke-width="0.8" stroke-dasharray="4,3"/>
+        <text x="150" y="80" fill="#A83838" font-size="5.5" opacity="0.7">主导</text>
+        <!-- E2: tiny -->
+        <rect x="212" y="106" width="18" height="4" rx="1" fill="rgba(196,98,10,.50)"/>
+        <rect x="232" y="106" width="18" height="4" rx="1" fill="rgba(26,111,232,.38)"/>
+        <text x="221" y="118" text-anchor="middle" fill="#6A7A88" font-size="6">E2</text>
+        <text x="221" y="125" text-anchor="middle" fill="#A0B0C0" font-size="5.5">f·P≈0</text>
+        <!-- E3: medium -->
+        <rect x="290" y="96" width="18" height="14" rx="1" fill="rgba(196,98,10,.50)"/>
+        <rect x="310" y="93" width="18" height="17" rx="1" fill="rgba(26,111,232,.38)"/>
+        <text x="299" y="118" text-anchor="middle" fill="#6A7A88" font-size="6">E3</text>
+        <text x="299" y="125" text-anchor="middle" fill="#6A7A88" font-size="5.5">f·P≈0.05</text>
+        <!-- L_aux annotation box -->
+        <rect x="350" y="40" width="56" height="62" rx="7" fill="rgba(196,48,48,.04)" stroke="rgba(196,48,48,.22)" stroke-width="1"/>
+        <text x="378" y="54"  text-anchor="middle" fill="#A83838" font-size="6.5" font-weight="600">L_aux</text>
+        <text x="378" y="70"  text-anchor="middle" fill="#A83838" font-size="11"  font-weight="700">≈0.5</text>
+        <text x="378" y="82"  text-anchor="middle" fill="#A83838" font-size="6">高！惩罚大</text>
+        <text x="378" y="92"  text-anchor="middle" fill="#A0B0C0" font-size="5.5">(均衡≈0.25)</text>
+      </svg>
+
+      <!-- SVG 2: 崩溃 vs 均衡（含标题头） -->
+      <svg width="100%" viewBox="0 0 420 140" style="display:block;overflow:visible;">
+        <defs>
+          <filter id="flt-c2" x="-5%" y="-5%" width="115%" height="115%">
+            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(26,35,54,0.07)"/>
+          </filter>
+        </defs>
+        <!-- Card -->
+        <rect x="1" y="1" width="418" height="138" rx="10" fill="white" stroke="rgba(164,184,200,.28)" stroke-width="1" filter="url(#flt-c2)"/>
+        <!-- Header band -->
+        <rect x="1" y="1" width="418" height="24" rx="10" fill="rgba(164,184,200,.07)"/>
+        <rect x="1" y="16" width="418" height="9"  fill="rgba(164,184,200,.07)"/>
+        <!-- Two-sided headers -->
+        <text x="105" y="17" text-anchor="middle" fill="#A83838" font-size="7.5" font-weight="600">崩溃状态 ✗</text>
+        <text x="315" y="17" text-anchor="middle" fill="#28794A" font-size="7.5" font-weight="600">均衡状态 ✓</text>
+        <!-- Divider -->
+        <line x1="210" y1="6" x2="210" y2="118" stroke="#D8E0E8" stroke-width="1" stroke-dasharray="5,3"/>
+        <!-- Baseline -->
+        <line x1="14"  y1="108" x2="196" y2="108" stroke="#D8E0E8" stroke-width="1"/>
+        <line x1="214" y1="108" x2="404" y2="108" stroke="#D8E0E8" stroke-width="1"/>
+        <!-- BAD bars -->
+        <rect x="22"  y="104" width="30" height="4"  rx="2" fill="rgba(196,48,48,.40)"/>
+        <text x="37"  y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E0</text>
+        <text x="37"  y="123" text-anchor="middle" fill="#8A9CAA" font-size="5.5">5%</text>
+        <rect x="62"  y="53"  width="30" height="55" rx="2" fill="rgba(196,48,48,.52)"/>
+        <text x="77"  y="116" text-anchor="middle" fill="#A83838" font-size="6" font-weight="600">E1</text>
+        <text x="77"  y="123" text-anchor="middle" fill="#A83838" font-size="5.5" font-weight="600">70% ⚡</text>
+        <rect x="102" y="104" width="30" height="4"  rx="2" fill="rgba(196,48,48,.40)"/>
+        <text x="117" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E2</text>
+        <text x="117" y="123" text-anchor="middle" fill="#8A9CAA" font-size="5.5">5%</text>
+        <rect x="142" y="92"  width="30" height="16" rx="2" fill="rgba(196,48,48,.44)"/>
+        <text x="157" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E3</text>
+        <text x="157" y="123" text-anchor="middle" fill="#8A9CAA" font-size="5.5">20%</text>
+        <text x="105" y="133" text-anchor="middle" fill="rgba(196,48,48,.60)" font-size="6.5">E1 过载，E0/E2 饥饿</text>
+        <!-- GOOD bars (25% each) -->
+        <rect x="222" y="88" width="30" height="20" rx="2" fill="rgba(26,138,68,.45)"/>
+        <text x="237" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E0</text>
+        <text x="237" y="123" text-anchor="middle" fill="#28794A" font-size="5.5">25%</text>
+        <rect x="256" y="88" width="30" height="20" rx="2" fill="rgba(26,138,68,.45)"/>
+        <text x="271" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E1</text>
+        <text x="271" y="123" text-anchor="middle" fill="#28794A" font-size="5.5">25%</text>
+        <rect x="290" y="88" width="30" height="20" rx="2" fill="rgba(26,138,68,.45)"/>
+        <text x="305" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E2</text>
+        <text x="305" y="123" text-anchor="middle" fill="#28794A" font-size="5.5">25%</text>
+        <rect x="324" y="88" width="30" height="20" rx="2" fill="rgba(26,138,68,.45)"/>
+        <text x="339" y="116" text-anchor="middle" fill="#6A7A88" font-size="6">E3</text>
+        <text x="339" y="123" text-anchor="middle" fill="#28794A" font-size="5.5">25%</text>
+        <line x1="214" y1="88" x2="404" y2="88" stroke="rgba(26,138,68,.28)" stroke-width="0.8" stroke-dasharray="3,2"/>
+        <text x="315" y="133" text-anchor="middle" fill="rgba(26,138,68,.65)" font-size="6.5">每个专家负载相当</text>
+      </svg>
+
+    </div>
+  </div>
+</div>
+
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 5 — EP 核心思想 + EP vs TP（合并）
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s5">
+  <div class="slide-header">
+    <div class="part-label">Part 2 — Expert Parallelism 概念</div>
+    <h2 class="sh">EP 核心思想：分专家，不分矩阵</h2>
+    <p class="subtitle">完整 Expert 分散在不同 GPU；Token 通过 All-to-All 精准送达目标 Expert</p>
+  </div>
+  <div class="body col2" style="gap:18px;align-items:stretch;">
+    <div class="L" style="flex:0 0 58%;gap:12px;">
+      <div class="card a1" style="padding:14px 16px;">
+        <div style="display:grid;grid-template-columns:1.02fr .98fr;gap:12px;align-items:center;">
+          <div>
+            <div class="ct">核心公式</div>
+            <div class="formula" style="font-size:17px;margin:0 0 10px;">num_local_experts = num_experts / EP</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px 7px;">
+              <span class="badge bb">num_experts = 8</span>
+              <span class="badge bo">EP = 4</span>
+              <span class="badge bg">每 GPU 2 个 Expert</span>
+            </div>
+          </div>
+          <div class="hl o" style="font-size:12px;">
+            EP 不切单个 <strong>Expert</strong> 的权重，而是把<strong>完整 Expert</strong>分散到不同 GPU；
+            Token 被 router 选中后，再通过 <strong>All-to-All</strong> 送到 Expert 所在 rank。
+          </div>
+        </div>
+      </div>
+      <div class="card a2" style="padding:12px 12px 10px;">
+        <div class="ct">8 Experts × EP=4 的实际落位</div>
+        <svg width="100%" viewBox="0 0 460 270" style="display:block;max-height:286px;">
+          <defs>
+            <filter id="cs8" x="-8%" y="-8%" width="120%" height="120%">
+              <feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="rgba(26,35,54,0.08)"/>
+            </filter>
+          </defs>
+          <text x="230" y="14" text-anchor="middle" fill="#6A7A88" font-size="8.5">EP=4，num_experts=8 — 每 GPU 持有 2 个 Expert</text>
+          <!-- GPU 0 (blue) -->
+          <rect x="8"   y="22" width="212" height="110" rx="11" fill="white" stroke="rgba(26,111,232,.32)" stroke-width="1.5" filter="url(#cs8)"/>
+          <rect x="8"   y="22" width="212" height="28"  rx="11" fill="rgba(26,111,232,.07)"/>
+          <rect x="8"   y="40" width="212" height="10"  fill="rgba(26,111,232,.07)"/>
+          <text x="114" y="38" text-anchor="middle" fill="#3A6AC8" font-size="8" font-weight="600">GPU 0  ·  rank 0</text>
+          <rect x="20"  y="56" width="86"  height="64"  rx="8" fill="rgba(26,111,232,.42)" stroke="rgba(26,111,232,.25)" stroke-width="1"/>
+          <text x="63"  y="88" text-anchor="middle" fill="white" font-size="11" font-weight="700">E0</text>
+          <text x="63"  y="100" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="6.5">FFN</text>
+          <rect x="116" y="56" width="90"  height="64"  rx="8" fill="rgba(26,111,232,.20)" stroke="rgba(26,111,232,.25)" stroke-width="1"/>
+          <text x="161" y="88" text-anchor="middle" fill="#2A4A88" font-size="11" font-weight="700">E1</text>
+          <text x="161" y="100" text-anchor="middle" fill="#5A7AB8" font-size="6.5">FFN</text>
+          <!-- GPU 1 (green) -->
+          <rect x="240" y="22" width="212" height="110" rx="11" fill="white" stroke="rgba(26,138,68,.32)" stroke-width="1.5" filter="url(#cs8)"/>
+          <rect x="240" y="22" width="212" height="28"  rx="11" fill="rgba(26,138,68,.07)"/>
+          <rect x="240" y="40" width="212" height="10"  fill="rgba(26,138,68,.07)"/>
+          <text x="346" y="38" text-anchor="middle" fill="#28794A" font-size="8" font-weight="600">GPU 1  ·  rank 1</text>
+          <rect x="252" y="56" width="86"  height="64"  rx="8" fill="rgba(26,138,68,.42)" stroke="rgba(26,138,68,.25)" stroke-width="1"/>
+          <text x="295" y="88" text-anchor="middle" fill="white" font-size="11" font-weight="700">E2</text>
+          <text x="295" y="100" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="6.5">FFN</text>
+          <rect x="348" y="56" width="90"  height="64"  rx="8" fill="rgba(26,138,68,.20)" stroke="rgba(26,138,68,.25)" stroke-width="1"/>
+          <text x="393" y="88" text-anchor="middle" fill="#1A4A30" font-size="11" font-weight="700">E3</text>
+          <text x="393" y="100" text-anchor="middle" fill="#4A8A60" font-size="6.5">FFN</text>
+          <!-- GPU 2 (orange) -->
+          <rect x="8"   y="146" width="212" height="110" rx="11" fill="white" stroke="rgba(196,98,10,.32)" stroke-width="1.5" filter="url(#cs8)"/>
+          <rect x="8"   y="146" width="212" height="28"  rx="11" fill="rgba(196,98,10,.07)"/>
+          <rect x="8"   y="164" width="212" height="10"  fill="rgba(196,98,10,.07)"/>
+          <text x="114" y="162" text-anchor="middle" fill="#A05018" font-size="8" font-weight="600">GPU 2  ·  rank 2</text>
+          <rect x="20"  y="180" width="86"  height="64"  rx="8" fill="rgba(196,98,10,.42)" stroke="rgba(196,98,10,.25)" stroke-width="1"/>
+          <text x="63"  y="212" text-anchor="middle" fill="white" font-size="11" font-weight="700">E4</text>
+          <text x="63"  y="224" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="6.5">FFN</text>
+          <rect x="116" y="180" width="90"  height="64"  rx="8" fill="rgba(196,98,10,.20)" stroke="rgba(196,98,10,.25)" stroke-width="1"/>
+          <text x="161" y="212" text-anchor="middle" fill="#6A3000" font-size="11" font-weight="700">E5</text>
+          <text x="161" y="224" text-anchor="middle" fill="#8A5020" font-size="6.5">FFN</text>
+          <!-- GPU 3 (purple) -->
+          <rect x="240" y="146" width="212" height="110" rx="11" fill="white" stroke="rgba(101,32,194,.32)" stroke-width="1.5" filter="url(#cs8)"/>
+          <rect x="240" y="146" width="212" height="28"  rx="11" fill="rgba(101,32,194,.07)"/>
+          <rect x="240" y="164" width="212" height="10"  fill="rgba(101,32,194,.07)"/>
+          <text x="346" y="162" text-anchor="middle" fill="#5520A8" font-size="8" font-weight="600">GPU 3  ·  rank 3</text>
+          <rect x="252" y="180" width="86"  height="64"  rx="8" fill="rgba(101,32,194,.42)" stroke="rgba(101,32,194,.25)" stroke-width="1"/>
+          <text x="295" y="212" text-anchor="middle" fill="white" font-size="11" font-weight="700">E6</text>
+          <text x="295" y="224" text-anchor="middle" fill="rgba(255,255,255,.65)" font-size="6.5">FFN</text>
+          <rect x="348" y="180" width="90"  height="64"  rx="8" fill="rgba(101,32,194,.20)" stroke="rgba(101,32,194,.25)" stroke-width="1"/>
+          <text x="393" y="212" text-anchor="middle" fill="#3A0A78" font-size="11" font-weight="700">E7</text>
+          <text x="393" y="224" text-anchor="middle" fill="#6A40A8" font-size="6.5">FFN</text>
+          <!-- Caption -->
+          <text x="230" y="262" text-anchor="middle" fill="#8A9CAA" font-size="7.5">↕ All-to-All：token 跨 GPU 精准路由</text>
+        </svg>
+      </div>
+    </div>
+
+    <div class="R" style="gap:12px;">
+      <div class="card b-orange a3" style="padding:14px 16px;">
+        <div class="ct orange">为什么 MoE 优先选 EP</div>
+        <table class="tbl" style="font-size:11.5px;">
+          <thead>
+            <tr><th>TP 用在 MoE</th><th>EP 用在 MoE</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>每个 expert 的 GEMM 后都要 AllReduce</td><td>只交换被路由到 expert 的 token</td></tr>
+            <tr><td>expert 被切碎，小矩阵导致 GPU 利用率差</td><td>每卡保留完整 expert，矩阵形状更友好</td></tr>
+            <tr><td>通信量随 expert 数量增长</td><td>通信量主要由 top-k 稀疏度决定</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card a4" style="padding:14px 16px;">
+        <div class="ct green">GroupedGEMM：把“多专家小批量”重新拼回大计算</div>
+        <div class="code" style="font-size:10.3px;line-height:1.55;padding:10px 12px;">
+<span class="cm"># 传统：N 次独立 GEMM（N 次 kernel 启动，高开销）</span>
+<span class="kw">for</span> i <span class="kw">in</span> <span class="fn">range</span>(num_experts):
+    output[i] = <span class="fn">torch.mm</span>(tokens_for_expert_i, W[i])
+
+<span class="cm"># GroupedGEMM：1 次 kernel 处理所有 expert（experts.py）</span>
+output = <span class="fn">grouped_gemm</span>(all_tokens, all_weights, tokens_per_expert)
+<span class="cm"># 单次 kernel 调用，充分利用 GPU SM，减少调度开销</span>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px;">
+          <div class="hl" style="font-size:11.5px;margin:0;">
+            <strong>通信侧：</strong>All-to-All 解决“token 去哪张卡”
+          </div>
+          <div class="hl g" style="font-size:11.5px;margin:0;">
+            <strong>计算侧：</strong>GroupedGEMM 解决“到卡后怎么算得快”
+          </div>
+        </div>
+      </div>
+
+      <div class="hl g a5" style="font-size:12.5px;">
+        <strong>一句话结论：</strong>TP 是“把一个矩阵切给多卡”，EP 是“把多个完整 expert 分给多卡”，后者更贴合 MoE 的稀疏路由本质。
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 6 — Gate 网络：路由决策
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s6">
+  <div class="slide-header">
+    <div class="part-label">Part 3 — Token 路由</div>
+    <h2 class="sh">Gate 网络 → Routing Map：Token 路由完整流程</h2>
+    <p class="subtitle">线性投影 → Softmax/Sigmoid → Top-K 选取 → routing_map [S×E] 布尔矩阵 → All-to-All 触发</p>
+  </div>
+  <div class="body col1" style="gap:10px;">
+
+    <!-- ── 上：Gate 说明 + 紧凑水平管线 ── -->
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;flex-shrink:0;align-items:stretch;">
+
+      <!-- 列1：4 步说明 -->
+      <div style="display:flex;flex-direction:column;height:100%;">
+        <div class="card a1" style="padding:14px 16px;height:100%;">
+          <div class="ct">Gate 路由决策 — 4 步详解</div>
+          <ul class="bul" style="font-size:12px;">
+            <li>
+              <strong>① 输入</strong>：hidden_states [S, d_model]
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.5;">S = 序列长度；d_model = 隐向量维度</div>
+            </li>
+            <li style="margin-top:3px;">
+              <strong>② 线性投影</strong>：W_gate [d_model, E] → logits [S, E]
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.5;">W_gate 无 bias；把 token 映射到 E 个 Expert 的打分空间</div>
+            </li>
+            <li style="margin-top:3px;">
+              <strong>③ 归一化</strong> → scores [S, E]
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.5;"><span style="color:var(--blue)">Softmax</span>：全局竞争，各行和 = 1<br><span style="color:var(--orange)">Sigmoid</span>：各 Expert 独立打分</div>
+            </li>
+            <li style="margin-top:3px;">
+              <strong>④ Top-K 选取</strong>：每 token 保留最高分的 K 个 Expert 位置
+              <div style="font-size:10.5px;color:var(--muted);margin-top:2px;line-height:1.5;">K=2 → 每 token 激活 2 个 Expert，FLOPs ≈ Dense 的 25%</div>
+            </li>
+            <li class="g" style="margin-top:3px;"><strong>输出</strong>：routing_map [S, E]（布尔矩阵，每行恰好 K 个 True）</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- 列2：水平管线图 + hl 说明 -->
+      <div class="a2" style="display:flex;flex-direction:column;height:100%;">
+        <div class="card" style="padding:14px 16px;height:100%;display:flex;align-items:center;justify-content:center;">
+        <svg width="100%" viewBox="0 0 304 274" style="display:block;max-width:344px;margin:0 auto;">
+          <text x="145" y="10" text-anchor="middle" fill="#6A7A88" font-size="8.5">Gate 路由管线  ·  moe/router.py: TopKRouter</text>
+          <!-- Box 1: hidden_states -->
+          <rect x="8" y="16" width="210" height="34" rx="7" fill="rgba(79,142,247,.15)" stroke="rgba(79,142,247,.45)" stroke-width="1.3"/>
+          <text x="113" y="30" text-anchor="middle" fill="#3A5AA8" font-size="9.5" font-weight="600">hidden_states  [S, d_model]</text>
+          <text x="113" y="43" text-anchor="middle" fill="#6A7A88" font-size="7.5">S = 序列长度，d_model = 隐向量维度</text>
+          <!-- Arrow 1 -->
+          <line x1="113" y1="50" x2="113" y2="60" stroke="#C0CCD8" stroke-width="1.5"/>
+          <polygon points="109,60 117,60 113,66" fill="#C0CCD8"/>
+          <text x="252" y="57" text-anchor="middle" fill="#6A7A88" font-size="8">① W_gate 线性投影</text>
+          <text x="252" y="67" text-anchor="middle" fill="#8A9CAA" font-size="7">无 bias</text>
+          <!-- Box 2: logits -->
+          <rect x="8" y="66" width="210" height="34" rx="7" fill="rgba(220,200,60,.15)" stroke="rgba(180,160,30,.45)" stroke-width="1.3"/>
+          <text x="113" y="80" text-anchor="middle" fill="#7A6800" font-size="9.5" font-weight="600">logits  [S, E]</text>
+          <text x="113" y="93" text-anchor="middle" fill="#6A7A88" font-size="7.5">每 token 对每 Expert 的原始得分</text>
+          <!-- Arrow 2 -->
+          <line x1="113" y1="100" x2="113" y2="110" stroke="#C0CCD8" stroke-width="1.5"/>
+          <polygon points="109,110 117,110 113,116" fill="#C0CCD8"/>
+          <text x="252" y="107" text-anchor="middle" fill="#6A7A88" font-size="8">② Softmax / Sigmoid</text>
+          <text x="252" y="117" text-anchor="middle" fill="#8A9CAA" font-size="7">归一化处理</text>
+          <!-- Box 3: scores -->
+          <rect x="8" y="116" width="210" height="34" rx="7" fill="rgba(247,168,79,.15)" stroke="rgba(196,98,10,.45)" stroke-width="1.3"/>
+          <text x="113" y="130" text-anchor="middle" fill="#A05018" font-size="9.5" font-weight="600">scores  [S, E]</text>
+          <text x="113" y="143" text-anchor="middle" fill="#6A7A88" font-size="7.5">归一化概率；Softmax 时各行和 = 1</text>
+          <!-- Arrow 3 -->
+          <line x1="113" y1="150" x2="113" y2="160" stroke="#C0CCD8" stroke-width="1.5"/>
+          <polygon points="109,160 117,160 113,166" fill="#C0CCD8"/>
+          <text x="252" y="157" text-anchor="middle" fill="#6A7A88" font-size="8">③ Top-K 选取（K=2）</text>
+          <text x="252" y="167" text-anchor="middle" fill="#8A9CAA" font-size="7">每 token 保留最高分 2 个</text>
+          <!-- Box 4: routing_map -->
+          <rect x="8" y="166" width="210" height="34" rx="7" fill="rgba(62,187,122,.15)" stroke="rgba(26,138,68,.45)" stroke-width="1.3"/>
+          <text x="113" y="180" text-anchor="middle" fill="#1A6A38" font-size="9.5" font-weight="600">routing_map  [S, E]  bool</text>
+          <text x="113" y="193" text-anchor="middle" fill="#6A7A88" font-size="7.5">每行 K 个 True，记录各 token 的路由目标</text>
+          <!-- Arrow 4 -->
+          <line x1="113" y1="200" x2="113" y2="210" stroke="#C0CCD8" stroke-width="1.5"/>
+          <polygon points="109,210 117,210 113,216" fill="#C0CCD8"/>
+          <text x="252" y="207" text-anchor="middle" fill="#6A7A88" font-size="8">④ 触发 All-to-All 通信</text>
+          <text x="252" y="217" text-anchor="middle" fill="#8A9CAA" font-size="7">token 跨 GPU 分发</text>
+          <!-- Box 5: Token Dispatcher -->
+          <rect x="8" y="216" width="210" height="34" rx="7" fill="rgba(192,132,252,.15)" stroke="rgba(101,32,194,.40)" stroke-width="1.3"/>
+          <text x="113" y="230" text-anchor="middle" fill="#5520A8" font-size="9.5" font-weight="600">Token Dispatcher  →  A2A</text>
+          <text x="113" y="243" text-anchor="middle" fill="#6A7A88" font-size="7.5">token 发往 Expert 所在 GPU 完成分发</text>
+          <!-- Source -->
+          <text x="113" y="258" text-anchor="middle" fill="#C0CCD8" font-size="7">moe/token_dispatcher.py</text>
+        </svg>
+        </div>
+      </div>
+
+      <!-- 列3：代码块 -->
+      <div class="card a3" style="padding:14px 16px;height:100%;">
+        <div class="ct">TopKRouter 核心代码</div>
+        <div class="code" style="font-size:9.8px;line-height:1.58;padding:10px 12px;">
+<span class="cm"># moe/router.py: TopKRouter.forward()</span>
+<span class="va">logits</span> = self.<span class="fn">gate</span>(hidden_states)
+<span class="cm">  # [S, d_model] → [S, E]  原始打分</span>
+<span class="va">scores</span> = <span class="fn">softmax</span>(logits, dim=-<span class="num">1</span>)
+<span class="cm">  # [S, E]  归一化，各行和 = 1</span>
+<span class="va">top_scores</span>, <span class="va">top_idx</span> = <span class="fn">topk</span>(scores, K)
+<span class="cm">  # [S, K]  Top-K Expert 值与索引</span>
+<span class="va">routing_map</span> = <span class="fn">build_routing_map</span>(top_idx, E)
+<span class="cm">  # [S, E] bool，True = 路由目标</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ── 下：Routing Map 矩阵 ── -->
+    <div class="card a4" style="flex:1;min-height:0;padding:10px 12px;display:flex;flex-direction:column;gap:6px;">
+      <div style="font-size:9.8px;color:var(--muted);font-weight:600;">routing_map [4 tokens × 8 experts] · 每行恰好 K=2 个 <span style="color:var(--green);font-weight:700;">T</span>；<span style="color:var(--green);font-weight:700;">T</span> = 路由到该 Expert，<span style="color:var(--muted);font-weight:700;">F</span> = 不路由</div>
+      <svg width="100%" viewBox="0 0 600 146" style="display:block;flex:1;">
+          <!-- GPU header bands -->
+          <rect x="62"  y="2" width="130" height="15" rx="3" fill="rgba(79,142,247,.16)"  stroke="rgba(79,142,247,.38)"  stroke-width="1"/>
+          <text x="127" y="13" text-anchor="middle" fill="#3A5AA8" font-size="7.2" font-weight="600">GPU 0  (E0, E1)</text>
+          <rect x="194" y="2" width="130" height="15" rx="3" fill="rgba(26,138,68,.13)"   stroke="rgba(26,138,68,.38)"   stroke-width="1"/>
+          <text x="259" y="13" text-anchor="middle" fill="#1A6A38" font-size="7.2" font-weight="600">GPU 1  (E2, E3)</text>
+          <rect x="326" y="2" width="130" height="15" rx="3" fill="rgba(196,98,10,.13)"   stroke="rgba(196,98,10,.38)"   stroke-width="1"/>
+          <text x="391" y="13" text-anchor="middle" fill="#A05018" font-size="7.2" font-weight="600">GPU 2  (E4, E5)</text>
+          <rect x="458" y="2" width="130" height="15" rx="3" fill="rgba(101,32,194,.10)"  stroke="rgba(101,32,194,.38)"  stroke-width="1"/>
+          <text x="523" y="13" text-anchor="middle" fill="#5520A8" font-size="7.2" font-weight="600">GPU 3  (E6, E7)</text>
+          <!-- Column headers -->
+          <text x="28"  y="31" fill="#6A7A88" font-size="7.4">Token</text>
+          <text x="94"  y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E0</text>
+          <text x="158" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E1</text>
+          <text x="226" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E2</text>
+          <text x="290" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E3</text>
+          <text x="358" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E4</text>
+          <text x="422" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E5</text>
+          <text x="490" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E6</text>
+          <text x="554" y="31" text-anchor="middle" fill="#6A7A88" font-size="7.4">E7</text>
+          <!-- T0 row (存于 GPU0; → E2·GPU1, E4·GPU2) -->
+          <text x="20" y="45" fill="#3A5AA8" font-size="8.6" font-weight="700">T0</text>
+          <rect x="62"  y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="92"  y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="126" y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="156" y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="194" y="32" width="60" height="21" rx="3" fill="rgba(26,138,68,.55)"  stroke="rgba(26,138,68,.45)" stroke-width="1.5"/><text x="224" y="45" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="258" y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="288" y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="326" y="32" width="60" height="21" rx="3" fill="rgba(196,98,10,.55)" stroke="rgba(196,98,10,.45)" stroke-width="1.5"/><text x="356" y="45" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="390" y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="420" y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="458" y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="488" y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="522" y="32" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="552" y="45" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <!-- T1 row (存于 GPU1; → E0·GPU0, E5·GPU2) -->
+          <text x="20" y="72" fill="#1A6A38" font-size="8.6" font-weight="700">T1</text>
+          <rect x="62"  y="59" width="60" height="21" rx="3" fill="rgba(79,142,247,.55)"  stroke="rgba(79,142,247,.45)" stroke-width="1.5"/><text x="92"  y="72" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="126" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="156" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="194" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="224" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="258" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="288" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="326" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="356" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="390" y="59" width="60" height="21" rx="3" fill="rgba(196,98,10,.55)" stroke="rgba(196,98,10,.45)" stroke-width="1.5"/><text x="420" y="72" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="458" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="488" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="522" y="59" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="552" y="72" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <!-- T2 row (存于 GPU2; → E1·GPU0, E6·GPU3) -->
+          <text x="20" y="99" fill="#A05018" font-size="8.6" font-weight="700">T2</text>
+          <rect x="62"  y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="92"  y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="126" y="86" width="60" height="21" rx="3" fill="rgba(79,142,247,.55)"  stroke="rgba(79,142,247,.45)" stroke-width="1.5"/><text x="156" y="99" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="194" y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="224" y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="258" y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="288" y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="326" y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="356" y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="390" y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="420" y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="458" y="86" width="60" height="21" rx="3" fill="rgba(101,32,194,.50)" stroke="rgba(101,32,194,.45)" stroke-width="1.5"/><text x="488" y="99" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="522" y="86" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="552" y="99" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <!-- T3 row (存于 GPU3; → E3·GPU1, E6·GPU3✓) -->
+          <text x="20" y="126" fill="#5520A8" font-size="8.6" font-weight="700">T3</text>
+          <rect x="62"  y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="92"  y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="126" y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="156" y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="194" y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="224" y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="258" y="113" width="60" height="21" rx="3" fill="rgba(26,138,68,.55)"  stroke="rgba(26,138,68,.45)" stroke-width="1.5"/><text x="288" y="126" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="326" y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="356" y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="390" y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="420" y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+          <rect x="458" y="113" width="60" height="21" rx="3" fill="rgba(101,32,194,.50)" stroke="rgba(101,32,194,.45)" stroke-width="1.5"/><text x="488" y="126" text-anchor="middle" fill="white" font-size="7.2" font-weight="700">T</text>
+          <rect x="522" y="113" width="60" height="21" rx="3" fill="var(--surface2)" stroke="var(--border)"/><text x="552" y="126" text-anchor="middle" fill="#B0BCC8" font-size="7.2">F</text>
+      </svg>
+    </div>
+
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 7 — All-to-All 通信概念
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s7">
+  <div class="slide-header">
+    <div class="part-label">Part 4 — Token Dispatch via All-to-All</div>
+    <h2 class="sh">All-to-All：把 Token Copies 定向送到目标 Rank</h2>
+    <p class="subtitle">Permute 之后，每张卡都像在“按目标 GPU 分拣快递”一样，把 token copies 定向发往需要它们的那张卡；图中 T0-T3 只是示例，不代表固定绑定某张 GPU</p>
+  </div>
+  <div class="body col1" style="gap:12px;">
+    <div class="g2 a1">
+      <div class="card b-green" style="padding:12px 14px;">
+        <div class="ct green">All-to-All 的核心语义</div>
+        <ul class="bul" style="font-size:12.5px;">
+          <li class="g">每个源 rank 只发送目标 expert 真正需要的 token copies</li>
+          <li class="g">同一个 token 可以同时发往多个目标 rank</li>
+          <li class="g">同一个目标 rank 也会从多个源 rank 接收 token copies</li>
+          <li>它是 many-to-many 的定向交换，不是把所有 token 广播给所有人</li>
+        </ul>
+      </div>
+      <div class="card b-orange" style="padding:12px 14px;">
+        <div class="ct orange">Megatron 实际使用：All-to-All-v</div>
+        <ul class="bul" style="font-size:12.5px;">
+          <li class="o">不同目标 rank 的分片长度通常不同</li>
+          <li class="o">通过 `input_split_sizes` / `output_split_sizes` 描述每段长度</li>
+          <li>发给自己 GPU 的那段保留本地，可视作“不出站”的本地分片</li>
+          <li class="o">通信量主要取决于 top-k 稀疏路由，而不是 expert 总数</li>
+        </ul>
+      </div>
+    </div>
+    <div class="a2a-scene a2">
+      <div class="a2a-layout">
+        <div>
+          <div class="a2a-title">发送前：每张卡只保留“待发 token copies”</div>
+          <div class="a2a-col">
+            <div class="a2a-box blue">
+              <div class="a2a-head">GPU 0 · 发送方</div>
+              <span class="a2a-chip green">T0 → GPU1 / E2</span>
+              <span class="a2a-chip orange">T0 → GPU2 / E4</span>
+            </div>
+            <div class="a2a-box green">
+              <div class="a2a-head">GPU 1 · 发送方</div>
+              <span class="a2a-chip blue">T1 → GPU0 / E0</span>
+              <span class="a2a-chip orange">T1 → GPU2 / E5</span>
+            </div>
+            <div class="a2a-box orange">
+              <div class="a2a-head">GPU 2 · 发送方</div>
+              <span class="a2a-chip blue">T2 → GPU0 / E1</span>
+              <span class="a2a-chip purple">T2 → GPU3 / E6</span>
+            </div>
+            <div class="a2a-box purple">
+              <div class="a2a-head">GPU 3 · 发送方</div>
+              <span class="a2a-chip green">T3 → GPU1 / E3</span>
+              <span class="a2a-chip purple">T3 → GPU3 / E6</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="a2a-mid">
+          <div class="a2a-mid-title">A2A 交换网络</div>
+          <div class="a2a-mid-copy">同一轮交换中，每张卡只发送<br>“别人真正需要”的 token copies</div>
+          <div class="a2a-mid-rule"></div>
+          <div class="a2a-mid-row"><span>GPU0</span><strong>[0,1,1,0]</strong></div>
+          <div class="a2a-mid-row"><span>GPU1</span><strong>[1,0,1,0]</strong></div>
+          <div class="a2a-mid-row"><span>GPU2</span><strong>[1,0,0,1]</strong></div>
+          <div class="a2a-mid-row"><span>GPU3</span><strong>[0,1,0,1]</strong></div>
+        </div>
+
+        <div>
+          <div class="a2a-title">接收后：每张卡只留下本地 Experts 要处理的 token</div>
+          <div class="a2a-col">
+            <div class="a2a-box blue">
+              <div class="a2a-head">GPU 0 · 接收后</div>
+              <span class="a2a-chip green">T1 → E0</span>
+              <span class="a2a-chip orange">T2 → E1</span>
+            </div>
+            <div class="a2a-box green">
+              <div class="a2a-head">GPU 1 · 接收后</div>
+              <span class="a2a-chip blue">T0 → E2</span>
+              <span class="a2a-chip purple">T3 → E3</span>
+            </div>
+            <div class="a2a-box orange">
+              <div class="a2a-head">GPU 2 · 接收后</div>
+              <span class="a2a-chip blue">T0 → E4</span>
+              <span class="a2a-chip green">T1 → E5</span>
+            </div>
+            <div class="a2a-box purple">
+              <div class="a2a-head">GPU 3 · 接收后</div>
+              <span class="a2a-chip orange">T2 → E6</span>
+              <span class="a2a-chip purple">T3 → E6</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="hl o a3">
+      <strong>图中缩写说明：</strong>`T0/T1...` 表示示例 token copy，`E0/E1...` 表示 expert，`GPU0/GPU1...` 表示目标卡；中间的 `[0,1,1,0]` 表示“分别发给 4 张 GPU 的数量”。这里把 T0-T3 放在不同 GPU 上只是为了演示 many-to-many 交换，实际哪张 GPU 先持有某个 token，取决于上游的 batch / sequence 切分。
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 8 — AlltoAll Dispatcher 7步流程
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s8">
+  <div class="slide-header">
+    <div class="part-label">Part 4 — Token Dispatch via All-to-All</div>
+    <h2 class="sh">AlltoAll Dispatcher：完整 7 步流程</h2>
+    <p class="subtitle">MoEAlltoAllTokenDispatcher forward 流程（token_dispatcher.py）</p>
+  </div>
+  <div class="body col1">
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;" class="a1">
+      <div class="card" style="border-color:var(--blue);">
+        <div style="font-size:22px;color:var(--blue);font-weight:700;margin-bottom:5px;">①</div>
+        <div class="ct">Permute</div>
+        <p style="font-size:12px;color:var(--muted);">按目标 EP rank 重排 token，生成 input_splits</p>
+      </div>
+      <div class="card" style="border-color:var(--orange);">
+        <div style="font-size:22px;color:var(--orange);font-weight:700;margin-bottom:5px;">②</div>
+        <div class="ct orange">A2A Send</div>
+        <p style="font-size:12px;color:var(--muted);">all_to_all_single 发送 token 到目标 GPU</p>
+      </div>
+      <div class="card" style="border-color:var(--orange);">
+        <div style="font-size:22px;color:var(--orange);font-weight:700;margin-bottom:5px;">③</div>
+        <div class="ct orange">A2A Recv</div>
+        <p style="font-size:12px;color:var(--muted);">接收来自其他 GPU 的 token，按 expert 排列</p>
+      </div>
+      <div class="card" style="border-color:var(--green);">
+        <div style="font-size:22px;color:var(--green);font-weight:700;margin-bottom:5px;">④</div>
+        <div class="ct green">Expert Compute</div>
+        <p style="font-size:12px;color:var(--muted);">GroupedGEMM：批量处理本地所有 expert</p>
+      </div>
+      <div class="card" style="border-color:var(--orange);">
+        <div style="font-size:22px;color:var(--orange);font-weight:700;margin-bottom:5px;">⑤</div>
+        <div class="ct orange">A2A Return</div>
+        <p style="font-size:12px;color:var(--muted);">将计算结果反向 all_to_all 送回源 GPU</p>
+      </div>
+      <div class="card" style="border-color:var(--orange);">
+        <div style="font-size:22px;color:var(--orange);font-weight:700;margin-bottom:5px;">⑥</div>
+        <div class="ct orange">Recv Output</div>
+        <p style="font-size:12px;color:var(--muted);">接收本 GPU 所有 token 的 expert 计算结果</p>
+      </div>
+      <div class="card" style="border-color:var(--blue);">
+        <div style="font-size:22px;color:var(--blue);font-weight:700;margin-bottom:5px;">⑦</div>
+        <div class="ct">Unpermute</div>
+        <p style="font-size:12px;color:var(--muted);">恢复原始 token 顺序，按权重加权聚合</p>
+      </div>
+      <div class="card" style="background:rgba(79,142,247,.04);">
+        <div style="font-size:16px;color:var(--muted);margin-bottom:5px;">总结</div>
+        <div class="ct">通信模式</div>
+        <p style="font-size:13px;color:var(--blue);margin-top:4px;">2× All-to-All<br>1× GroupedGEMM</p>
+      </div>
+    </div>
+    <div class="code a2" style="font-size:11px;margin-top:10px;">
+<span class="cm"># token_dispatcher.py: MoEAlltoAllTokenDispatcher.token_permutation()</span>
+<span class="va">permuted_input</span>, input_splits = <span class="fn">permute</span>(hidden_states, routing_map)          <span class="cm"># ① Permute</span>
+<span class="va">dispatched_input</span> = <span class="fn">all_to_all</span>(permuted_input, input_splits, output_splits)  <span class="cm"># ② ③ A2A</span>
+<span class="va">expert_output</span> = <span class="fn">expert_forward</span>(dispatched_input)                            <span class="cm"># ④ GroupedGEMM</span>
+<span class="va">returned</span> = <span class="fn">all_to_all</span>(expert_output, ...)                                  <span class="cm"># ⑤ ⑥ A2A Return</span>
+<span class="va">output</span> = <span class="fn">unpermute</span>(returned, scores)                                        <span class="cm"># ⑦ Unpermute</span>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 9 — Step 1: Permute
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s9">
+  <div class="slide-header">
+    <div class="part-label">Part 4 — Token Dispatch via All-to-All</div>
+    <h2 class="sh">Step 1：Permute（排列）</h2>
+    <p class="subtitle">按目标 EP rank 重排 token 内存布局 — moe_utils.py: permute()</p>
+  </div>
+  <div class="body col2" style="gap:16px;">
+    <div class="L" style="flex:0 0 32%;">
+      <div class="card a1">
+        <div class="ct">为什么要 Permute？</div>
+        <ul class="bul">
+          <li>all_to_all_single 要求发送数据在内存上连续</li>
+          <li>需要将"发给 GPU 0 的 token"连续排列，再是"发给 GPU 1"...</li>
+          <li>同时计算 input_splits：每段有多少 token</li>
+        </ul>
+      </div>
+      <div class="code a2" style="font-size:11px;">
+<span class="cm"># moe_utils.py: permute()</span>
+<span class="kw">def</span> <span class="fn">permute</span>(tokens, routing_map, num_out_tokens=<span class="kw">None</span>):
+  <span class="cm"># routing_map: [S, E] bool</span>
+  <span class="cm"># 展平后找 True 的位置（token_idx, expert_idx）</span>
+  <span class="va">token_indices</span> = routing_map.<span class="fn">nonzero</span>()[:, <span class="num">0</span>]
+  <span class="va">permuted_tokens</span> = tokens[token_indices]
+  <span class="kw">return</span> permuted_tokens, sorted_indices
+
+<span class="cm"># input_splits[i] = 发给 GPU i 的 token 数</span>
+<span class="va">input_splits</span> = routing_map[:, gpu_i_experts].<span class="fn">sum</span>(dim=<span class="num">0</span>)
+      </div>
+      <div class="hl o a3">
+        <strong>注意</strong>：top-K 路由时一个 token 可能需要被发到多个 GPU，因此 permuted_tokens 数量 = S × K
+      </div>
+    </div>
+    <div class="R a4" style="flex:1;display:flex;align-items:stretch;justify-content:center;">
+      <div class="diagram-shell compact" style="width:100%;max-width:none;height:100%;">
+        <div class="diagram-meta">
+          <div>
+            <div class="diagram-kicker">Memory View</div>
+            <strong>Permute 的内存重排过程</strong>
+            <span>按 <code style="color:var(--orange)">nonzero() → [:,0] → tokens[token_indices]</code> 依次展开，让“发往同一 GPU 的 token copies”先在内存上变连续。</span>
+          </div>
+        </div>
+      <svg width="100%" viewBox="0 0 480 392" style="display:block;flex:1;min-height:0;">
+        <text x="240" y="18" text-anchor="middle" fill="#546070" font-size="13">右图逐行对应左侧代码</text>
+
+        <defs>
+          <marker id="p9a" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L7,3 Z" fill="#F7A84F"/>
+          </marker>
+        </defs>
+
+        <!-- 1 -->
+        <rect x="20" y="30" width="440" height="58" rx="12" fill="white" stroke="var(--border)"/>
+        <text x="34" y="48" fill="#546070" font-size="11">1. `tokens`：原始 token 顺序，保存的是 4 行 hidden_states</text>
+        <rect x="34"  y="58" width="92" height="18" rx="4.5" fill="rgba(79,142,247,.62)"/>
+        <text x="80"  y="70" text-anchor="middle" fill="white" font-size="8">T0</text>
+        <rect x="138" y="58" width="92" height="18" rx="4.5" fill="rgba(62,187,122,.62)"/>
+        <text x="184" y="70" text-anchor="middle" fill="white" font-size="8">T1</text>
+        <rect x="242" y="58" width="92" height="18" rx="4.5" fill="rgba(247,168,79,.72)"/>
+        <text x="288" y="70" text-anchor="middle" fill="white" font-size="8">T2</text>
+        <rect x="346" y="58" width="92" height="18" rx="4.5" fill="rgba(192,132,252,.68)"/>
+        <text x="392" y="70" text-anchor="middle" fill="white" font-size="8">T3</text>
+
+        <line x1="240" y1="88" x2="240" y2="104" stroke="#F7A84F" stroke-width="1.4" marker-end="url(#p9a)"/>
+
+        <!-- 2 -->
+        <rect x="20" y="108" width="440" height="155" rx="12" fill="white" stroke="var(--border)"/>
+        <text x="34" y="126" fill="#546070" font-size="11">2. `routing_map.nonzero()`：枚举每个 `True` 的位置</text>
+        <text x="34" y="140" fill="#8A9CAA" font-size="7.5">扫描顺序：先按 token 行，再按 expert 列。</text>
+        <text x="34" y="152" fill="#8A9CAA" font-size="7.5">每个 True 都会生成 1 个“要发送的副本”。</text>
+
+        <!-- matrix -->
+        <text x="36"  y="182" fill="#6A7A88" font-size="7.5">tok</text>
+        <text x="72"  y="182" fill="#6A7A88" font-size="7.5">E0</text>
+        <text x="98"  y="182" fill="#6A7A88" font-size="7.5">E1</text>
+        <text x="124" y="182" fill="#6A7A88" font-size="7.5">E2</text>
+        <text x="150" y="182" fill="#6A7A88" font-size="7.5">E3</text>
+        <text x="176" y="182" fill="#6A7A88" font-size="7.5">E4</text>
+        <text x="202" y="182" fill="#6A7A88" font-size="7.5">E5</text>
+        <text x="228" y="182" fill="#6A7A88" font-size="7.5">E6</text>
+
+        <text x="36" y="200" fill="#4F8EF7" font-size="8.5" font-weight="700">T0</text>
+        <rect x="64" y="191" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="90" y="191" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="116" y="191" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="142" y="191" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="168" y="191" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="194" y="191" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="220" y="191" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+        <text x="124" y="200" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+        <text x="176" y="200" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+
+        <text x="36" y="216" fill="#3EBB7A" font-size="8.5" font-weight="700">T1</text>
+        <rect x="64" y="207" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="90" y="207" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="116" y="207" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="142" y="207" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="168" y="207" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="194" y="207" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="220" y="207" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/>
+        <text x="72" y="216" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+        <text x="202" y="216" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+
+        <text x="36" y="232" fill="#F7A84F" font-size="8.5" font-weight="700">T2</text>
+        <rect x="64" y="223" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="90" y="223" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="116" y="223" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="142" y="223" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="168" y="223" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="194" y="223" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="220" y="223" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/>
+        <text x="72" y="232" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+        <text x="228" y="232" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+
+        <text x="36" y="248" fill="#6520C2" font-size="8.5" font-weight="700">T3</text>
+        <rect x="64" y="239" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="90" y="239" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="116" y="239" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="142" y="239" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/><rect x="168" y="239" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="194" y="239" width="16" height="12" rx="3" fill="var(--surface2)" stroke="var(--border)"/><rect x="220" y="239" width="16" height="12" rx="3" fill="rgba(26,138,68,.78)" stroke="#1A8A44" stroke-width="1.1"/>
+        <text x="150" y="248" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+        <text x="228" y="248" text-anchor="middle" fill="white" font-size="7" font-weight="700">T</text>
+
+        <rect x="260" y="170" width="186" height="82" rx="7" fill="rgba(245,248,252,.88)" stroke="rgba(196,98,10,.22)"/>
+        <text x="353" y="183" text-anchor="middle" fill="#8A9CAA" font-size="7.2">nonzero() 返回的完整坐标对</text>
+        <text x="353" y="197" text-anchor="middle" fill="#4F8EF7" font-size="7.2">(0,2) (0,4)</text>
+        <text x="353" y="211" text-anchor="middle" fill="#3EBB7A" font-size="7.2">(1,0) (1,5)</text>
+        <text x="353" y="225" text-anchor="middle" fill="#F7A84F" font-size="7.2">(2,0) (2,6)</text>
+        <text x="353" y="239" text-anchor="middle" fill="#6520C2" font-size="7.2">(3,3) (3,6)</text>
+
+        <line x1="240" y1="254" x2="240" y2="268" stroke="#F7A84F" stroke-width="1.4" marker-end="url(#p9a)"/>
+
+        <!-- 3 -->
+        <rect x="20" y="268" width="440" height="50" rx="10" fill="white" stroke="var(--border)"/>
+        <text x="34" y="286" fill="#546070" font-size="11">3. `[:,0]`：只保留坐标对的第一列，也就是 token 所在的“行号”</text>
+        <text x="34" y="300" fill="#8A9CAA" font-size="7.5">为什么要行号？因为下一步 `tokens[token_indices]` 是按 token 这一维取 hidden_states；</text>
+        <text x="34" y="312" fill="#8A9CAA" font-size="7.5">expert_idx 只表示“送去哪个 expert”，不能直接拿来索引 token 行。</text>
+
+        <line x1="240" y1="318" x2="240" y2="332" stroke="#F7A84F" stroke-width="1.4" marker-end="url(#p9a)"/>
+
+        <!-- 4 -->
+        <rect x="20" y="332" width="440" height="18" rx="10" fill="white" stroke="var(--border)"/>
+        <text x="34" y="344" fill="#546070" font-size="10.5">4. `token_indices = [0 0 1 1 2 2 3 3]` → `permuted_tokens = [T0 T0 T1 T1 T2 T2 T3 T3]`</text>
+      </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 10 — Step 2-3: A2A 通信动画
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s10">
+  <div class="slide-header">
+    <div class="part-label">Part 4 — Token Dispatch via All-to-All</div>
+    <h2 class="sh">Step 2-3：All-to-All 通信</h2>
+    <p class="subtitle">4 GPU 间 token 流动 — torch.distributed.all_to_all_single</p>
+  </div>
+  <div class="body col1">
+    <svg width="100%" height="360" viewBox="0 0 820 360">
+      <defs>
+        <marker id="fA" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L0,6 L7,3 Z" fill="#F7A84F"/>
+        </marker>
+      </defs>
+      <text x="410" y="22" text-anchor="middle" fill="#546070" font-size="12">Step 2-3：all_to_all_single 做的事 = 每张卡把“该发给谁的那一段”交换给目标卡</text>
+
+      <!-- top overview -->
+      <rect x="150" y="34" width="520" height="54" rx="10" fill="white" stroke="var(--border)"/>
+      <text x="410" y="52" text-anchor="middle" fill="#546070" font-size="11">All-to-All 前：本卡已经把 token 按目标 GPU 分成连续几段</text>
+      <rect x="170" y="62" width="110" height="14" rx="4" fill="rgba(79,142,247,.58)"/>
+      <text x="225" y="72" text-anchor="middle" fill="white" font-size="7.5">发给 GPU0</text>
+      <rect x="290" y="62" width="110" height="14" rx="4" fill="rgba(62,187,122,.58)"/>
+      <text x="345" y="72" text-anchor="middle" fill="white" font-size="7.5">发给 GPU1</text>
+      <rect x="410" y="62" width="110" height="14" rx="4" fill="rgba(247,168,79,.65)"/>
+      <text x="465" y="72" text-anchor="middle" fill="white" font-size="7.5">发给 GPU2</text>
+      <rect x="530" y="62" width="120" height="14" rx="4" fill="rgba(192,132,252,.62)"/>
+      <text x="590" y="72" text-anchor="middle" fill="white" font-size="7.5">发给 GPU3</text>
+
+      <line x1="410" y1="88" x2="410" y2="104" stroke="#F7A84F" stroke-width="1.4" marker-end="url(#fA)"/>
+
+      <!-- routing map / send plan -->
+      <rect x="250" y="104" width="320" height="54" rx="10" fill="white" stroke="var(--border)"/>
+      <text x="410" y="122" text-anchor="middle" fill="#546070" font-size="11">routing_map / send plan（示例）</text>
+      <text x="410" y="138" text-anchor="middle" fill="#8A9CAA" font-size="8">T0→GPU1/GPU2，T1→GPU0/GPU2，T2→GPU0/GPU3，T3→GPU1/GPU3</text>
+
+      <line x1="410" y1="158" x2="410" y2="174" stroke="#F7A84F" stroke-width="1.4" marker-end="url(#fA)"/>
+
+      <!-- middle fabric -->
+      <rect x="250" y="174" width="320" height="52" rx="12" fill="rgba(247,168,79,.08)" stroke="#F7A84F" stroke-width="1.6"/>
+      <text x="410" y="194" text-anchor="middle" fill="#A05018" font-size="13" font-weight="700">all_to_all_single</text>
+      <text x="410" y="210" text-anchor="middle" fill="#8A9CAA" font-size="8.5">按照 split_sizes，把每张卡的连续分片交换给目标卡</text>
+
+      <!-- bottom 4 destinations -->
+      <text x="410" y="244" text-anchor="middle" fill="#546070" font-size="11">All-to-All 后：每张卡只留下本地 experts 要处理的 token</text>
+
+      <g transform="translate(20,258)">
+        <rect x="0" y="0" width="185" height="92" rx="10" fill="rgba(79,142,247,.08)" stroke="#4F8EF7" stroke-width="1.5"/>
+        <text x="92" y="18" text-anchor="middle" fill="#4F8EF7" font-size="11" font-weight="600">GPU 0（E0 / E1）</text>
+        <rect x="16" y="30" width="153" height="18" rx="4" fill="rgba(62,187,122,.62)"/>
+        <text x="92" y="42" text-anchor="middle" fill="white" font-size="8">从 GPU1 收到 T1 → E0</text>
+        <rect x="16" y="54" width="153" height="18" rx="4" fill="rgba(247,168,79,.72)"/>
+        <text x="92" y="66" text-anchor="middle" fill="white" font-size="8">从 GPU2 收到 T2 → E1</text>
+      </g>
+
+      <g transform="translate(220,258)">
+        <rect x="0" y="0" width="185" height="92" rx="10" fill="rgba(62,187,122,.08)" stroke="#3EBB7A" stroke-width="1.5"/>
+        <text x="92" y="18" text-anchor="middle" fill="#3EBB7A" font-size="11" font-weight="600">GPU 1（E2 / E3）</text>
+        <rect x="16" y="30" width="153" height="18" rx="4" fill="rgba(79,142,247,.62)"/>
+        <text x="92" y="42" text-anchor="middle" fill="white" font-size="8">从 GPU0 收到 T0 → E2</text>
+        <rect x="16" y="54" width="153" height="18" rx="4" fill="rgba(192,132,252,.68)"/>
+        <text x="92" y="66" text-anchor="middle" fill="white" font-size="8">从 GPU3 收到 T3 → E3</text>
+      </g>
+
+      <g transform="translate(420,258)">
+        <rect x="0" y="0" width="185" height="92" rx="10" fill="rgba(247,168,79,.08)" stroke="#F7A84F" stroke-width="1.5"/>
+        <text x="92" y="18" text-anchor="middle" fill="#F7A84F" font-size="11" font-weight="600">GPU 2（E4 / E5）</text>
+        <rect x="16" y="30" width="153" height="18" rx="4" fill="rgba(79,142,247,.62)"/>
+        <text x="92" y="42" text-anchor="middle" fill="white" font-size="8">从 GPU0 收到 T0 → E4</text>
+        <rect x="16" y="54" width="153" height="18" rx="4" fill="rgba(62,187,122,.62)"/>
+        <text x="92" y="66" text-anchor="middle" fill="white" font-size="8">从 GPU1 收到 T1 → E5</text>
+      </g>
+
+      <g transform="translate(620,258)">
+        <rect x="0" y="0" width="185" height="92" rx="10" fill="rgba(192,132,252,.08)" stroke="#C084FC" stroke-width="1.5"/>
+        <text x="92" y="18" text-anchor="middle" fill="#C084FC" font-size="11" font-weight="600">GPU 3（E6 / E7）</text>
+        <rect x="16" y="30" width="153" height="18" rx="4" fill="rgba(247,168,79,.72)"/>
+        <text x="92" y="42" text-anchor="middle" fill="white" font-size="8">从 GPU2 收到 T2 → E6</text>
+        <rect x="16" y="54" width="153" height="18" rx="4" fill="rgba(192,132,252,.68)"/>
+        <text x="92" y="66" text-anchor="middle" fill="white" font-size="8">本地保留 T3 → E7 / E6</text>
+      </g>
+
+      <text x="410" y="374" text-anchor="middle" fill="#F7A84F" font-size="11">接口语义：all_to_all_single(output, input, output_split_sizes, input_split_sizes)</text>
+    </svg>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 11 — Step 4: Expert Compute GroupedGEMM
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s11">
+  <div class="slide-header">
+    <div class="part-label">Part 4 — Token Dispatch via All-to-All</div>
+    <h2 class="sh">Step 4：Expert Compute（GroupedGEMM）</h2>
+    <p class="subtitle">tokens_per_expert 驱动批量 GEMM — moe/experts.py</p>
+  </div>
+  <div class="body col2" style="gap:18px;">
+    <div class="L" style="flex:0 0 48%;">
+      <div class="card a1">
+        <div class="ct">GroupedGEMM 原理</div>
+        <ul class="bul">
+          <li>接收到的 token 按 expert 顺序连续排列</li>
+          <li><code style="color:var(--orange)">tokens_per_expert</code>：记录每 expert 对应多少 token</li>
+          <li>单次 GroupedGEMM kernel 处理所有 expert</li>
+          <li class="g">比 N 次独立 GEMM 显著节省 kernel 启动开销</li>
+        </ul>
+      </div>
+      <div class="code a2" style="font-size:11px;">
+<span class="cm"># experts.py: GroupedMLP.forward()</span>
+<span class="kw">def</span> <span class="fn">forward</span>(self, permuted_local_hidden, tokens_per_expert):
+  <span class="cm"># permuted_local_hidden: [total_tokens, hidden]</span>
+  <span class="cm"># tokens_per_expert: [num_local_experts] int</span>
+  fc1_output = <span class="fn">grouped_gemm</span>(
+    permuted_local_hidden,
+    self.weight1,         <span class="cm"># [E_local, d, 4d]</span>
+    tokens_per_expert,    <span class="cm"># 分组边界信息</span>
+    transpose_weight=<span class="kw">False</span>
+  )
+  fc1_output = <span class="fn">gelu</span>(fc1_output)
+  <span class="kw">return</span> <span class="fn">grouped_gemm</span>(fc1_output, self.weight2, tokens_per_expert)
+      </div>
+    </div>
+    <div class="R a3" style="display:flex;align-items:stretch;justify-content:center;">
+      <div class="gg-panel" style="width:100%;max-width:none;height:100%;">
+        <div class="gg-head">
+          <div>
+            <div class="gg-eyebrow">Kernel View</div>
+            <div class="gg-title">GroupedGEMM 执行视图</div>
+            <div class="gg-desc">把按 expert 连续排列的 token blocks 与 <code style="color:var(--orange)">tokens_per_expert</code> 边界一起交给同一个 kernel，顺序扫过本地所有 expert。</div>
+          </div>
+          <div class="gg-pill">E_local = 2</div>
+        </div>
+
+        <div class="gg-metrics">
+          <div class="gg-chip"><span>输入</span><strong>[total_tokens, hidden]</strong></div>
+          <div class="gg-chip"><span>分组</span><strong>[12, 15]</strong></div>
+          <div class="gg-chip"><span>权重</span><strong>[E_local, h, 4h]</strong></div>
+        </div>
+
+        <div class="gg-flow">
+          <div class="gg-step">
+            <div class="gg-num">1</div>
+            <div class="gg-step-title">
+              <strong>输入布局</strong>
+              <span class="gg-tag">contiguous blocks</span>
+            </div>
+            <div class="gg-caption">permuted_local_hidden 中，相同 expert 的 token 已经排成连续区段。</div>
+            <div class="gg-bars">
+              <div class="gg-bar blue">E0 · 12 tokens</div>
+              <div class="gg-bar green">E1 · 15 tokens</div>
+            </div>
+          </div>
+
+          <div class="gg-step">
+            <div class="gg-num">2</div>
+            <div class="gg-step-title">
+              <strong>边界向量</strong>
+              <span class="gg-tag">tokens_per_expert</span>
+            </div>
+            <div class="gg-caption">这个长度向量告诉 kernel 每个 expert block 从哪里开始、到哪里结束。</div>
+            <div class="gg-counts">
+              <div class="gg-count blue">12</div>
+              <div class="gg-count green">15</div>
+              <div class="gg-arrow">=&gt; cumulative splits</div>
+            </div>
+          </div>
+
+          <div class="gg-step emph">
+            <div class="gg-num">3</div>
+            <div class="gg-step-title">
+              <strong>单次 Kernel 扫描</strong>
+              <span class="gg-tag">grouped_gemm()</span>
+            </div>
+            <div class="gg-caption">同一次 launch 内，kernel 依次取出 E0 / E1 的 token block，并匹配对应权重矩阵完成 GEMM。</div>
+            <div class="gg-kernel-row">
+              <div class="gg-mini blue">E0 tokens × W0</div>
+              <div class="gg-op">+</div>
+              <div class="gg-mini green">E1 tokens × W1</div>
+              <div class="gg-op">→</div>
+              <div class="gg-mini orange">1 launch</div>
+            </div>
+          </div>
+
+          <div class="gg-step out">
+            <div class="gg-num">4</div>
+            <div class="gg-step-title">
+              <strong>输出布局保持</strong>
+              <span class="gg-tag">expert-major</span>
+            </div>
+            <div class="gg-caption">输出仍按 expert 拼接，后续直接进入 return A2A / unpermute，不必重新做零碎 gather。</div>
+            <div class="gg-bars">
+              <div class="gg-bar blue soft">E0 output</div>
+              <div class="gg-bar green soft">E1 output</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="gg-foot">
+          <span><code style="color:var(--purple)">moe/experts.py</code> 调用 <code>GroupedMLP.forward()</code></span>
+          <span><code style="color:var(--orange)">grouped_gemm_util.py</code> 负责选择高性能后端</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 12 — 三种 Dispatcher 对比
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s12">
+  <div class="slide-header">
+    <div class="part-label">Part 5 — 通信策略对比</div>
+    <h2 class="sh">三种 Dispatcher 对比</h2>
+    <p class="subtitle">AllGather / AlltoAll / Flex — 适用场景各有侧重</p>
+  </div>
+  <div class="body col1">
+    <table class="tbl a1">
+      <thead>
+        <tr><th>Dispatcher</th><th>通信原语</th><th>特点</th><th>适用场景</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><span class="badge bo">AllGather</span></td>
+          <td>AllGather + local scatter</td>
+          <td>广播所有 token，实现简单；通信量大但拓扑友好</td>
+          <td>小规模 EP，NVLink，token 分布均匀</td>
+        </tr>
+        <tr>
+          <td><span class="badge bb">AlltoAll</span></td>
+          <td>All-to-All-v × 2</td>
+          <td>精准路由，只通信必要 token；需要 permute/unpermute</td>
+          <td>标准 EP，跨节点大规模，稀疏路由</td>
+        </tr>
+        <tr>
+          <td><span class="badge bg">Flex</span></td>
+          <td>DeepEP 融合算子</td>
+          <td>permute + A2A + unpermute 融合为更少 kernel；支持 HybridEP</td>
+          <td>超大规模 EP，追求极致延迟</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="g2 a2" style="margin-top:12px;">
+      <div class="card">
+        <div class="ct orange">AllGather Dispatcher 流程</div>
+        <div style="font-size:13px;line-height:2;color:var(--muted);">
+          ① AllGather → 所有 GPU 得到完整 token 集<br>
+          ② 本地按 routing_map 提取对应 expert token<br>
+          ③ 本地 Expert 计算（无跨 GPU A2A 开销）<br>
+          ④ ReduceScatter → 聚合输出
+        </div>
+      </div>
+      <div class="card b-green">
+        <div class="ct green">AlltoAll vs AllGather 选择</div>
+        <ul class="bul" style="font-size:13px;">
+          <li class="g">top-K 稀疏（K=2, 8 experts）→ A2A 通信量约 25%，优选 AlltoAll</li>
+          <li class="g">EP 在节点内 + NVLink → 可选 AllGather</li>
+          <li class="o">AllGather 通信量固定为 batch × d_model × EP，不受稀疏性影响</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 13 — Flex Dispatcher: DeepEP & HybridEP
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s13">
+  <div class="slide-header">
+    <div class="part-label">Part 5 — 通信策略对比</div>
+    <h2 class="sh">Flex Dispatcher：DeepEP & HybridEP</h2>
+    <p class="subtitle">融合 permute + A2A + unpermute，消除 CPU 调度瓶颈 — fused_a2a.py</p>
+  </div>
+  <div class="body col2">
+    <div class="L">
+      <div class="card a1">
+        <div class="ct">DeepEP 的关键创新</div>
+        <ul class="bul">
+          <li>来自 DeepSeek 开源的 EP 专用通信库</li>
+          <li>将 permute + all_to_all + unpermute 融合为更少 CUDA kernel</li>
+          <li>消除 CPU 调度多个 kernel 的延迟</li>
+          <li class="g">支持<strong style="color:var(--orange)">异步通信</strong>：通信与计算重叠</li>
+        </ul>
+      </div>
+      <div class="code a2" style="font-size:11px;">
+<span class="cm"># fused_a2a.py: MoEFlexTokenDispatcher</span>
+<span class="kw">def</span> <span class="fn">token_permutation</span>(self, hidden, probs, routing_map):
+  <span class="cm"># DeepEP 低延迟融合 dispatch</span>
+  <span class="va">recv_hidden</span>, <span class="va">handle</span> = \
+    self.deepep_buffer.<span class="fn">low_latency_dispatch</span>(
+      hidden, topk_idx, num_experts=self.num_experts
+    )
+  <span class="cm"># handle 用于异步等待通信完成</span>
+  <span class="kw">return</span> recv_hidden, handle
+      </div>
+      <div class="card a3">
+        <div class="ct orange">HybridEP：节点内 + 节点间分离</div>
+        <ul class="bul" style="font-size:13px;">
+          <li class="g">节点内（NVLink）：低延迟 AllGather</li>
+          <li class="g">节点间（InfiniBand）：高带宽 AlltoAll</li>
+          <li>两层路由，最大化硬件利用率</li>
+        </ul>
+      </div>
+    </div>
+    <div class="R a4" style="display:flex;align-items:stretch;justify-content:center;">
+      <div class="diagram-shell compact" style="width:100%;max-width:none;height:100%;">
+        <div class="diagram-meta">
+          <div>
+            <div class="diagram-kicker">Kernel Fusion</div>
+            <strong>标准 A2A vs Flex</strong>
+            <span>把原来拆开的 permute / A2A / unpermute 合成更少的 dispatch 与 combine kernel，减少 CPU 调度和 launch 开销。</span>
+          </div>
+        </div>
+      <svg width="100%" viewBox="0 0 320 290" style="display:block;flex:1;min-height:0;">
+        <text x="160" y="18" text-anchor="middle" fill="#546070" font-size="12" font-weight="700">标准 A2A vs Flex 路径对比</text>
+
+        <rect x="18" y="34" width="112" height="206" rx="16" fill="rgba(247,127,114,.04)" stroke="rgba(247,127,114,.16)"/>
+        <text x="74" y="52" text-anchor="middle" fill="#F77E72" font-size="12" font-weight="700">标准 AlltoAll</text>
+        <rect x="30" y="66" width="88" height="22" rx="6" fill="rgba(79,142,247,.22)" stroke="#4F8EF7" stroke-width="1.2"/>
+        <text x="74" y="81" text-anchor="middle" fill="#4F8EF7" font-size="10.5">① permute()</text>
+        <line x1="74" y1="88" x2="74" y2="98" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="30" y="98" width="88" height="22" rx="6" fill="rgba(247,168,79,.22)" stroke="#F7A84F" stroke-width="1.2"/>
+        <text x="74" y="113" text-anchor="middle" fill="#F7A84F" font-size="10.5">② all_to_all()</text>
+        <line x1="74" y1="120" x2="74" y2="130" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="30" y="130" width="88" height="22" rx="6" fill="rgba(62,187,122,.22)" stroke="#3EBB7A" stroke-width="1.2"/>
+        <text x="74" y="145" text-anchor="middle" fill="#3EBB7A" font-size="10.5">③ expert</text>
+        <line x1="74" y1="152" x2="74" y2="162" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="30" y="162" width="88" height="22" rx="6" fill="rgba(247,168,79,.22)" stroke="#F7A84F" stroke-width="1.2"/>
+        <text x="74" y="177" text-anchor="middle" fill="#F7A84F" font-size="10.5">④ all_to_all()</text>
+        <line x1="74" y1="184" x2="74" y2="194" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="30" y="194" width="88" height="22" rx="6" fill="rgba(79,142,247,.22)" stroke="#4F8EF7" stroke-width="1.2"/>
+        <text x="74" y="209" text-anchor="middle" fill="#4F8EF7" font-size="10.5">⑤ unpermute()</text>
+        <text x="74" y="232" text-anchor="middle" fill="#F77E72" font-size="11" font-weight="700">5 次 kernel 启动</text>
+
+        <line x1="160" y1="42" x2="160" y2="236" stroke="#D0D9E4" stroke-width="1.2" stroke-dasharray="5,4"/>
+        <text x="160" y="140" text-anchor="middle" fill="#A8B8C8" font-size="11" transform="rotate(-90,160,140)">融合前 vs 融合后</text>
+
+        <rect x="190" y="34" width="112" height="206" rx="16" fill="rgba(62,187,122,.04)" stroke="rgba(62,187,122,.18)"/>
+        <text x="246" y="52" text-anchor="middle" fill="#3EBB7A" font-size="12" font-weight="700">Flex（DeepEP）</text>
+        <rect x="202" y="66" width="88" height="56" rx="10" fill="rgba(247,168,79,.18)" stroke="#F7A84F" stroke-width="1.8"/>
+        <text x="246" y="90" text-anchor="middle" fill="#F7A84F" font-size="10.8" font-weight="700">融合 dispatch</text>
+        <text x="246" y="105" text-anchor="middle" fill="#A05018" font-size="9.2">permute + A2A</text>
+        <line x1="246" y1="122" x2="246" y2="134" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="202" y="134" width="88" height="28" rx="8" fill="rgba(62,187,122,.22)" stroke="#3EBB7A" stroke-width="1.5"/>
+        <text x="246" y="152" text-anchor="middle" fill="#3EBB7A" font-size="10.8" font-weight="700">Expert Compute</text>
+        <line x1="246" y1="162" x2="246" y2="174" stroke="#A0B0C0" stroke-width="1"/>
+        <rect x="202" y="174" width="88" height="56" rx="10" fill="rgba(247,168,79,.18)" stroke="#F7A84F" stroke-width="1.8"/>
+        <text x="246" y="198" text-anchor="middle" fill="#F7A84F" font-size="10.8" font-weight="700">融合 combine</text>
+        <text x="246" y="213" text-anchor="middle" fill="#A05018" font-size="9.2">A2A + unpermute</text>
+        <text x="246" y="232" text-anchor="middle" fill="#3EBB7A" font-size="11" font-weight="700">~3 次 kernel ↓</text>
+
+        <text x="160" y="268" text-anchor="middle" fill="#A8B8C8" font-size="10">moe/fused_a2a.py</text>
+      </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 14 — 通信与计算重叠
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s14">
+  <div class="slide-header">
+    <div class="part-label">Part 6 — 关键优化</div>
+    <h2 class="sh">通信与计算重叠</h2>
+    <p class="subtitle">Shared Expert Overlap + EP A2A Overlap — Gantt 对比</p>
+  </div>
+  <div class="body col1">
+    <div class="diagram-shell a1">
+      <div class="diagram-meta">
+        <div>
+          <div class="diagram-kicker">Overlap Timeline</div>
+          <strong>串行执行 vs 重叠执行</strong>
+          <span>把 Shared Expert 放到独立 CUDA stream，与 A2A Dispatch 并行，是 MoE 里最容易讲清楚也最有感知的延迟优化之一。</span>
+        </div>
+        <div class="diagram-badges">
+          <span class="diagram-badge">Local</span>
+          <span class="diagram-badge orange">A2A</span>
+          <span class="diagram-badge green">Expert</span>
+          <span class="diagram-badge purple">Shared</span>
+        </div>
+      </div>
+    <svg width="100%" height="290" viewBox="0 0 820 290">
+      <rect x="42" y="34" width="736" height="96" rx="14" fill="rgba(247,127,114,.04)" stroke="rgba(247,127,114,.16)"/>
+      <text x="62" y="56" fill="#F77E72" font-size="13" font-weight="700">无重叠（串行执行）</text>
+      <text x="62" y="72" fill="#8A9CAA" font-size="9">Shared Expert 排在 Expert Compute 后面，整条链路完全串行</text>
+      <line x1="62" y1="100" x2="742" y2="100" stroke="#D8E0E8" stroke-width="1.2"/>
+      <rect x="62" y="84" width="56" height="24" rx="6" fill="#4F8EF7" opacity="0.9"/>
+      <text x="90" y="100" text-anchor="middle" fill="white" font-size="9">Router</text>
+      <rect x="124" y="84" width="96" height="24" rx="6" fill="#F7A84F" opacity="0.9"/>
+      <text x="172" y="100" text-anchor="middle" fill="white" font-size="9">A2A Dispatch</text>
+      <rect x="226" y="84" width="68" height="24" rx="6" fill="#C084FC" opacity="0.9"/>
+      <text x="260" y="100" text-anchor="middle" fill="white" font-size="9">Shared</text>
+      <rect x="300" y="84" width="134" height="24" rx="6" fill="#3EBB7A" opacity="0.9"/>
+      <text x="367" y="100" text-anchor="middle" fill="white" font-size="9">Expert Compute</text>
+      <rect x="440" y="84" width="96" height="24" rx="6" fill="#F7A84F" opacity="0.9"/>
+      <text x="488" y="100" text-anchor="middle" fill="white" font-size="9">A2A Return</text>
+      <rect x="542" y="84" width="72" height="24" rx="6" fill="#4F8EF7" opacity="0.9"/>
+      <text x="578" y="100" text-anchor="middle" fill="white" font-size="9">Unpermute</text>
+      <text x="380" y="122" text-anchor="middle" fill="#F77E72" font-size="10.5">总时间 T = 所有阶段串行相加</text>
+
+      <rect x="42" y="146" width="736" height="108" rx="14" fill="rgba(62,187,122,.04)" stroke="rgba(62,187,122,.16)"/>
+      <text x="62" y="168" fill="#3EBB7A" font-size="13" font-weight="700">有重叠（优化后）</text>
+      <text x="62" y="184" fill="#8A9CAA" font-size="9">Shared Expert 被提前放到独立 stream，在 Dispatch 期间并行执行，因此它出现在 Expert Compute 前面</text>
+      <line x1="62" y1="214" x2="742" y2="214" stroke="#D8E0E8" stroke-width="1.2"/>
+      <rect x="62" y="198" width="56" height="24" rx="6" fill="#4F8EF7" opacity="0.9"/>
+      <text x="90" y="214" text-anchor="middle" fill="white" font-size="9">Router</text>
+      <rect x="124" y="198" width="96" height="24" rx="6" fill="#F7A84F" opacity="0.9"/>
+      <text x="172" y="214" text-anchor="middle" fill="white" font-size="9">A2A Dispatch</text>
+      <rect x="128" y="228" width="82" height="16" rx="5" fill="#C084FC" opacity="0.94"/>
+      <text x="169" y="239" text-anchor="middle" fill="white" font-size="8">Shared 并行</text>
+      <rect x="226" y="198" width="134" height="24" rx="6" fill="#3EBB7A" opacity="0.9"/>
+      <text x="293" y="214" text-anchor="middle" fill="white" font-size="9">Expert Compute</text>
+      <rect x="366" y="198" width="96" height="24" rx="6" fill="#F7A84F" opacity="0.9"/>
+      <text x="414" y="214" text-anchor="middle" fill="white" font-size="9">A2A Return</text>
+      <rect x="468" y="198" width="72" height="24" rx="6" fill="#4F8EF7" opacity="0.9"/>
+      <text x="504" y="214" text-anchor="middle" fill="white" font-size="9">Unpermute</text>
+      <line x1="128" y1="236" x2="222" y2="236" stroke="#C084FC" stroke-width="1.4" stroke-dasharray="4,3"/>
+      <text x="610" y="216" fill="#F7D354" font-size="10.5" font-weight="700">节省一段 shared 时间</text>
+      <text x="380" y="246" text-anchor="middle" fill="#3EBB7A" font-size="10.5">总时间 T' ≈ T - t_shared</text>
+    </svg>
+    </div>
+    <div class="hl g a2">
+      通过 <code>--moe-shared-expert-overlap</code> 配置，Shared Expert 计算与 All-to-All Dispatch 在不同 CUDA stream 上并行，MoE 层延迟降低约 10-20%
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 15 — 负载均衡优化
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s15">
+  <div class="slide-header">
+    <div class="part-label">Part 6 — 关键优化</div>
+    <h2 class="sh">负载均衡优化</h2>
+    <p class="subtitle">核心矛盾：热门 expert 过载、冷门 expert 闲置；目标是在稳定训练的同时，把 token 更均匀地摊到各专家</p>
+  </div>
+  <div class="body col2">
+    <div class="L">
+      <div class="card a1">
+        <div class="ct red">先看问题：为什么会失衡？</div>
+        <ul class="bul" style="font-size:13px;margin-top:2px;">
+          <li class="r">router 初期会偏爱少数 expert，导致热门专家持续吸走更多 token</li>
+          <li class="r">热门 expert 越忙，队列越长；冷门 expert 越闲，GPU 利用率越差</li>
+          <li>所以负载均衡的核心不是“绝对平均”，而是避免局部过载和长尾空转</li>
+        </ul>
+      </div>
+      <div class="card a2">
+        <div class="ct">手段 1：Capacity Factor（硬上限）</div>
+        <div class="formula" style="font-size:14px;">capacity = ⌊S × top_k / E × capacity_factor⌋</div>
+        <ul class="bul" style="font-size:13px;margin-top:6px;">
+          <li>给每个 expert 设一个“最多接多少 token”的容量上限</li>
+          <li>capacity_factor &gt; 1.0：允许轻微过载，避免上限太死</li>
+          <li class="r">超过容量的 token 会被 drop 或延后，是稳定性和利用率之间的硬性权衡</li>
+        </ul>
+      </div>
+      <div class="card a3">
+        <div class="ct orange">手段 2：Expert Bias（软调节）</div>
+        <div class="formula" style="font-size:14px;">routing_score = logit + bias[expert]</div>
+        <ul class="bul" style="font-size:13px;margin-top:6px;">
+          <li>不是直接拦截 token，而是提前改写 router 打分，调节“谁更有吸引力”</li>
+          <li>负载高的 expert：bias 下降，后续 token 更不容易继续涌入</li>
+          <li>负载低的 expert：bias 上升，把后续 token 慢慢引导过来</li>
+          <li class="g">优点是连续、在线、对主梯度干扰小，所以 DeepSeek-V3 更偏爱这种方案</li>
+        </ul>
+      </div>
+      <div class="hl g a4" style="font-size:12.5px;">
+        <strong>一句话理解：</strong>Capacity Factor 是“别再进来了”的硬闸门，Expert Bias 是“下一个别总来这边”的软引导；两者都在解决热门 expert 过载。
+      </div>
+    </div>
+    <div class="R a5" style="display:flex;align-items:stretch;justify-content:center;">
+      <div class="diagram-shell compact" style="width:100%;max-width:none;height:100%;">
+        <div class="diagram-meta">
+          <div>
+            <div class="diagram-kicker">Bias Rebalance</div>
+            <strong>Expert Bias 是怎么把负载拉回来的？</strong>
+            <span>它不是事后惩罚，而是在 router 打分阶段就做“削峰填谷”：热门 expert 降吸引力，冷门 expert 升吸引力。</span>
+          </div>
+        </div>
+      <svg width="100%" viewBox="0 0 330 260" style="display:block;flex:1;min-height:0;">
+        <text x="82" y="24" text-anchor="middle" fill="#546070" font-size="11" font-weight="600">1. 热门 expert 过载</text>
+        <text x="248" y="24" text-anchor="middle" fill="#546070" font-size="11" font-weight="600">3. 负载重新摊平</text>
+
+        <line x1="20" y1="188" x2="142" y2="188" stroke="#C4D0DD" stroke-width="1"/>
+        <rect x="28" y="160" width="18" height="28" rx="3" fill="#F3C2BC"/>
+        <rect x="52" y="72" width="26" height="116" rx="3" fill="#ED958A"/>
+        <rect x="86" y="150" width="18" height="38" rx="3" fill="#F3C2BC"/>
+        <rect x="110" y="166" width="18" height="22" rx="3" fill="#F3C2BC"/>
+        <text x="37" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E0</text>
+        <text x="65" y="204" text-anchor="middle" fill="#C43030" font-size="8.5" font-weight="700">E1</text>
+        <text x="95" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E2</text>
+        <text x="119" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E3</text>
+        <text x="82" y="220" text-anchor="middle" fill="#C43030" font-size="9.5" font-weight="700">热点 expert 吃走太多 token</text>
+
+        <text x="164" y="106" text-anchor="middle" fill="#F7A84F" font-size="20">→</text>
+        <text x="164" y="90" text-anchor="middle" fill="#7A5800" font-size="10">2. bias 调节</text>
+        <rect x="136" y="122" width="56" height="20" rx="10" fill="rgba(247,168,79,.14)" stroke="rgba(247,168,79,.7)"/>
+        <text x="164" y="135" text-anchor="middle" fill="#A05018" font-size="9" font-weight="700">bias[E1] ↓</text>
+        <rect x="126" y="150" width="76" height="20" rx="10" fill="rgba(62,187,122,.12)" stroke="rgba(62,187,122,.7)"/>
+        <text x="164" y="163" text-anchor="middle" fill="#1A8A44" font-size="9" font-weight="700">bias[E0/E2/E3] ↑</text>
+
+        <line x1="202" y1="188" x2="318" y2="188" stroke="#C4D0DD" stroke-width="1"/>
+        <rect x="214" y="126" width="20" height="62" rx="3" fill="#8FCF9F"/>
+        <rect x="240" y="118" width="20" height="70" rx="3" fill="#7CC590"/>
+        <rect x="266" y="130" width="20" height="58" rx="3" fill="#8FCF9F"/>
+        <rect x="292" y="124" width="20" height="64" rx="3" fill="#86CA97"/>
+        <text x="224" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E0</text>
+        <text x="250" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E1</text>
+        <text x="276" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E2</text>
+        <text x="302" y="204" text-anchor="middle" fill="#546070" font-size="8.5">E3</text>
+        <text x="258" y="220" text-anchor="middle" fill="#1A8A44" font-size="9.5" font-weight="700">后续 token 会更愿意流向冷门 expert</text>
+
+        <text x="164" y="248" text-anchor="middle" fill="#A8B8C8" font-size="9">moe/router.py: expert_bias routing</text>
+      </svg>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 16 — Token 排列融合优化
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s16">
+  <div class="slide-header">
+    <div class="part-label">Part 6 — 关键优化</div>
+    <h2 class="sh">Token 排列融合优化</h2>
+    <p class="subtitle">moe_permute_fusion / moe_router_fusion / TE Fused Kernels</p>
+  </div>
+  <div class="body col1">
+    <div class="g2 a1" style="gap:14px;">
+      <div class="card">
+        <div class="ct">moe_permute_fusion</div>
+        <ul class="bul" style="font-size:13px;">
+          <li>将 permute + dropout + bias-add 融合为单 kernel</li>
+          <li>减少显存读写次数（避免中间 tensor 写回）</li>
+          <li class="g">配置：<code>--moe-permute-fusion</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ct orange">moe_router_fusion</div>
+        <ul class="bul" style="font-size:13px;">
+          <li>将 router linear + softmax + topk 融合</li>
+          <li>减少 router 计算延迟（通常仅 &lt;1ms）</li>
+          <li class="g">配置：<code>--moe-router-fusion</code></li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ct green">TE Fused MoE Kernels</div>
+        <ul class="bul" style="font-size:13px;">
+          <li>TransformerEngine 提供 FP8 GroupedGEMM</li>
+          <li>FP8 量化 + fused GeLU + GroupedGEMM</li>
+          <li class="g">适合 H100 等支持 FP8 的 GPU</li>
+        </ul>
+      </div>
+      <div class="card">
+        <div class="ct purple">grouped_gemm_util.py</div>
+        <ul class="bul" style="font-size:13px;">
+          <li>封装 TE GroupedGEMM 接口</li>
+          <li>有 TE → FP8 GroupedGEMM；无 TE → fallback 循环</li>
+          <li class="o">训练性能的关键路径</li>
+        </ul>
+      </div>
+    </div>
+    <div class="code a2" style="font-size:11px;margin-top:12px;">
+<span class="cm"># grouped_gemm_util.py: 自动选择后端</span>
+<span class="kw">def</span> <span class="fn">grouped_gemm_is_available</span>():
+  <span class="kw">return</span> <span class="fn">importlib.util.find_spec</span>(<span class="st">"grouped_gemm"</span>) <span class="kw">is not None</span>
+
+<span class="kw">if</span> <span class="fn">grouped_gemm_is_available</span>():
+  <span class="kw">from</span> grouped_gemm.ops <span class="kw">import</span> gmm <span class="kw">as</span> grouped_gemm   <span class="cm"># CUTLASS/TE 高性能实现</span>
+<span class="kw">else</span>:
+  <span class="kw">def</span> <span class="fn">grouped_gemm</span>(A, B, batch_sizes, ...):              <span class="cm"># fallback: 朴素 for 循环</span>
+    outputs = [<span class="fn">torch.mm</span>(a, b) <span class="kw">for</span> a, b <span class="kw">in</span> <span class="fn">zip_experts</span>(A, B, batch_sizes)]
+    <span class="kw">return</span> <span class="fn">torch.cat</span>(outputs, dim=<span class="num">0</span>)
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 20 — 完整前向传播时间线
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s20">
+  <div class="slide-header">
+    <div class="part-label">Part 8 — 总结</div>
+    <h2 class="sh">完整前向传播时间线</h2>
+    <p class="subtitle">7 步 Gantt — 本地（蓝）/ 通信（橙）/ 计算（绿）三色编码</p>
+  </div>
+  <div class="body col1">
+    <div class="diagram-shell a1">
+      <div class="diagram-meta">
+        <div>
+          <div class="diagram-kicker">Forward Pass</div>
+          <strong>MoE 前向完整时间线</strong>
+          <span>把 7 个步骤放到一条统一时间轴上，观众才能把 “Router → Permute → Dispatch → Compute → Return → Unpermute” 真正连成因果链。</span>
+        </div>
+        <div class="diagram-badges">
+          <span class="diagram-badge">Local</span>
+          <span class="diagram-badge orange">Dispatch</span>
+          <span class="diagram-badge green">Compute</span>
+          <span class="diagram-badge purple">Overlap</span>
+        </div>
+      </div>
+    <svg width="100%" height="300" viewBox="0 0 820 300">
+      <!-- Legend -->
+      <rect x="10" y="6" width="12" height="12" rx="2" fill="#4F8EF7"/><text x="26" y="17" fill="#192336" font-size="12">本地</text>
+      <rect x="90" y="6" width="12" height="12" rx="2" fill="#F7A84F"/><text x="106" y="17" fill="#192336" font-size="12">A2A 通信</text>
+      <rect x="210" y="6" width="12" height="12" rx="2" fill="#3EBB7A"/><text x="226" y="17" fill="#192336" font-size="12">Expert 计算</text>
+      <rect x="340" y="6" width="12" height="12" rx="2" fill="#C084FC"/><text x="356" y="17" fill="#192336" font-size="12">Shared Expert</text>
+      <!-- Step labels -->
+      <text x="8" y="52" fill="#4F8EF7" font-size="11" font-weight="600">① Router</text>
+      <text x="8" y="90" fill="#4F8EF7" font-size="11" font-weight="600">② Permute</text>
+      <text x="8" y="128" fill="#F7A84F" font-size="11" font-weight="600">③ A2A Send</text>
+      <text x="8" y="166" fill="#C084FC" font-size="11" font-weight="600">④ Shared Exp</text>
+      <text x="8" y="204" fill="#3EBB7A" font-size="11" font-weight="600">⑤ Expert Comp</text>
+      <text x="8" y="242" fill="#F7A84F" font-size="11" font-weight="600">⑥ A2A Return</text>
+      <text x="8" y="280" fill="#4F8EF7" font-size="11" font-weight="600">⑦ Unpermute</text>
+      <!-- Gantt bars (aligned on timeline starting at x=130) -->
+      <rect x="130" y="36" width="70" height="30" rx="4" fill="#4F8EF7" opacity="0.85"/>
+      <text x="165" y="56" text-anchor="middle" fill="white" font-size="10">Gate+TopK</text>
+      <rect x="205" y="74" width="50" height="30" rx="4" fill="#4F8EF7" opacity="0.85"/>
+      <text x="230" y="94" text-anchor="middle" fill="white" font-size="10">排列</text>
+      <!-- A2A spans 260-400 -->
+      <rect x="260" y="112" width="140" height="30" rx="4" fill="#F7A84F" opacity="0.85"/>
+      <text x="330" y="132" text-anchor="middle" fill="white" font-size="11">All-to-All Dispatch</text>
+      <!-- Shared Expert overlaps with A2A (overlap!) -->
+      <rect x="260" y="150" width="130" height="30" rx="4" fill="#C084FC" opacity="0.8"/>
+      <text x="325" y="170" text-anchor="middle" fill="white" font-size="10">Shared (并行) ✓</text>
+      <!-- Overlap bracket -->
+      <line x1="256" y1="185" x2="395" y2="185" stroke="#C084FC" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.6"/>
+      <text x="325" y="197" text-anchor="middle" fill="#C084FC" font-size="9">← 重叠节省时间 →</text>
+      <!-- Expert compute: 405-595 -->
+      <rect x="405" y="188" width="190" height="30" rx="4" fill="#3EBB7A" opacity="0.85"/>
+      <text x="500" y="208" text-anchor="middle" fill="white" font-size="11">GroupedGEMM (本地 Experts)</text>
+      <!-- A2A return: 600-740 -->
+      <rect x="600" y="226" width="140" height="30" rx="4" fill="#F7A84F" opacity="0.85"/>
+      <text x="670" y="246" text-anchor="middle" fill="white" font-size="11">All-to-All Return</text>
+      <!-- Unpermute: 745-800 -->
+      <rect x="745" y="264" width="68" height="30" rx="4" fill="#4F8EF7" opacity="0.85"/>
+      <text x="779" y="284" text-anchor="middle" fill="white" font-size="9">逆排+聚合</text>
+      <!-- Vertical time grid -->
+      <line x1="130" y1="30" x2="130" y2="300" stroke="#C4D0DD" stroke-width="1" stroke-dasharray="3"/>
+      <line x1="260" y1="30" x2="260" y2="300" stroke="#C4D0DD" stroke-width="1" stroke-dasharray="3"/>
+      <line x1="405" y1="30" x2="405" y2="300" stroke="#C4D0DD" stroke-width="1" stroke-dasharray="3"/>
+      <line x1="600" y1="30" x2="600" y2="300" stroke="#C4D0DD" stroke-width="1" stroke-dasharray="3"/>
+    </svg>
+    </div>
+    <div class="hl g a2">
+      关键优化：步骤 ③（A2A Dispatch）与 步骤 ④（Shared Expert 计算）<strong>在不同 CUDA stream 上并行执行</strong>，通过 <code>--moe-shared-expert-overlap</code> 开启，可节省约 10-20% MoE 层延迟
+    </div>
+  </div>
+</div>
+
+<!-- ════════════════════════════════════════════════════
+     SLIDE 21 — 关键文件速查 + 总结
+════════════════════════════════════════════════════ -->
+<div class="slide" id="s21">
+  <div class="slide-header">
+    <div class="part-label">Part 8 — 总结</div>
+    <h2 class="sh">关键文件速查 + 核心配置参数</h2>
+    <p class="subtitle">Megatron-LM EP 源码地图 + 一站式参数速查</p>
+  </div>
+  <div class="body col2">
+    <div class="L">
+      <table class="tbl a1" style="font-size:12px;">
+        <thead><tr><th>文件</th><th>核心功能</th></tr></thead>
+        <tbody>
+          <tr><td><code style="color:var(--blue)">moe_layer.py</code></td><td>MoE 层入口，forward 流程编排</td></tr>
+          <tr><td><code style="color:var(--orange)">router.py</code></td><td>TopKRouter，路由决策 + aux_loss</td></tr>
+          <tr><td><code style="color:var(--green)">token_dispatcher.py</code></td><td>AlltoAll/AllGather/Flex Dispatcher</td></tr>
+          <tr><td><code style="color:var(--blue)">experts.py</code></td><td>GroupedMLP，Expert 权重 + 计算</td></tr>
+          <tr><td><code style="color:var(--orange)">fused_a2a.py</code></td><td>DeepEP FusedDispatch / HybridEP</td></tr>
+          <tr><td><code style="color:var(--green)">moe_utils.py</code></td><td>permute/unpermute + 负载均衡 loss</td></tr>
+          <tr><td><code style="color:var(--purple)">grouped_gemm_util.py</code></td><td>GroupedGEMM 接口封装（TE/fallback）</td></tr>
+          <tr><td><code style="color:var(--muted)">parallel_state.py</code></td><td>ep_group / tp_ep_group 进程组管理</td></tr>
+        </tbody>
+      </table>
+      <div class="hl g a2" style="margin-top:10px;">
+        <strong>学习路径：</strong> router.py → token_dispatcher.py → experts.py → moe_layer.py
+      </div>
+    </div>
+    <div class="R">
+      <div class="card a3">
+        <div class="ct">核心配置参数速查</div>
+        <div class="code" style="font-size:10.5px;max-height:300px;">
+<span class="cm"># EP 基础</span>
+--<span class="va">expert-model-parallel-size</span>     <span class="cm"># EP 大小</span>
+--<span class="va">num-experts</span>                    <span class="cm"># Expert 总数</span>
+--<span class="va">moe-router-topk</span>                <span class="cm"># Top-K 路由</span>
+--<span class="va">moe-ffn-hidden-size</span>            <span class="cm"># Expert FFN 宽度</span>
+
+<span class="cm"># 通信策略</span>
+--<span class="va">moe-token-dispatcher-type</span>      <span class="cm"># alltoall/allgather/flex</span>
+--<span class="va">moe-expert-capacity-factor</span>     <span class="cm"># capacity factor</span>
+--<span class="va">moe-router-load-balancing-type</span> <span class="cm"># aux_loss/seq_aux/none</span>
+
+<span class="cm"># Shared Expert</span>
+--<span class="va">moe-shared-expert-intermediate-size</span>
+--<span class="va">moe-shared-expert-overlap</span>      <span class="cm"># 并行优化</span>
+
+<span class="cm"># 融合优化</span>
+--<span class="va">moe-permute-fusion</span>             <span class="cm"># permute 融合</span>
+--<span class="va">moe-router-fusion</span>              <span class="cm"># router 融合</span>
+
+<span class="cm"># 负载均衡</span>
+--<span class="va">moe-aux-loss-coeff</span>             <span class="cm"># α 系数 (0.001~0.01)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /#slides -->
+
+<!-- UI overlays -->
+<div id="dots"></div>
+<div id="page-num">1 / 18</div>
+<div id="nav-hint">← → 切换 · Space 前进 · 点击左右侧</div>
+
+<script>
+let cur = 0;
+const slides = Array.from(document.querySelectorAll('.slide'));
+const TOTAL = slides.length;
+const prog = document.getElementById('progress');
+const pn = document.getElementById('page-num');
+const dotsEl = document.getElementById('dots');
+
+function clamp(v, min, max) {
+  return Math.max(min, Math.min(max, v));
+}
+
+function median(arr) {
+  if (!arr.length) return 0;
+  const sorted = [...arr].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+}
+
+function chooseDiagramTarget(svg, textCount, rect, slide) {
+  const slideId = slide.id;
+  let target;
+  if (textCount >= 40) target = 10.8;
+  else if (textCount >= 24) target = 11.4;
+  else if (textCount >= 14) target = 12.1;
+  else target = 12.8;
+
+  if (rect.width < 420) target -= 0.3;
+  if (svg.closest('.diagram-shell') || svg.closest('.gg-panel')) target += 0.2;
+  if (slide.querySelector('.body.col1') && rect.width > 700 && textCount <= 18) target += 0.3;
+  if (slideId === 's6') target -= 0.55;
+  if (slideId === 's7') target -= 0.4;
+  if (slideId === 's19') target -= 0.45;
+
+  return target;
+}
+
+function normalizeDiagramTypography(scope = null) {
+  const slideList = scope
+    ? (scope.classList?.contains('slide') ? [scope] : Array.from(scope.querySelectorAll('.slide')))
+    : [slides[cur]];
+
+  slideList.forEach(slide => {
+    if (!slide) return;
+    slide.querySelectorAll('svg').forEach(svg => {
+      const texts = Array.from(svg.querySelectorAll('text'));
+      if (texts.length < 4) return;
+
+      const rect = svg.getBoundingClientRect();
+      const vb = svg.viewBox?.baseVal;
+      if (!rect.width || !rect.height || !vb?.width || !vb?.height) return;
+
+      const renderScale = Math.min(rect.width / vb.width, rect.height / vb.height);
+      if (!Number.isFinite(renderScale) || renderScale <= 0) return;
+
+      const renderedSizes = [];
+      texts.forEach(t => {
+        if (!t.dataset.baseFontSize) {
+          const attr = parseFloat(t.getAttribute('font-size') || '');
+          const fallback = parseFloat(getComputedStyle(t).fontSize) / renderScale;
+          const base = Number.isFinite(attr) ? attr : fallback;
+          if (Number.isFinite(base) && base > 0) t.dataset.baseFontSize = String(base);
+        }
+
+        const base = parseFloat(t.dataset.baseFontSize || '');
+        if (Number.isFinite(base) && base > 0) renderedSizes.push(base * renderScale);
+      });
+
+      if (!renderedSizes.length) return;
+
+      const currentMedian = median(renderedSizes);
+      const target = chooseDiagramTarget(svg, texts.length, rect, slide);
+      const factor = clamp(target / currentMedian, 0.82, 1.28);
+
+      texts.forEach(t => {
+        const base = parseFloat(t.dataset.baseFontSize || '');
+        if (Number.isFinite(base) && base > 0) {
+          t.setAttribute('font-size', (base * factor).toFixed(2));
+        }
+      });
+    });
+  });
+}
+
+function getActiveScrollBox() {
+  return slides[cur] || null;
+}
+
+function canSlideByWheel(deltaY) {
+  const box = getActiveScrollBox();
+  if (!box) return true;
+  const maxScroll = box.scrollHeight - box.clientHeight;
+  if (maxScroll <= 4) return true;
+  if (deltaY > 0) return box.scrollTop + box.clientHeight >= box.scrollHeight - 2;
+  if (deltaY < 0) return box.scrollTop <= 2;
+  return false;
+}
+
+// Build dots
+for (let i = 0; i < TOTAL; i++) {
+  const d = document.createElement('div');
+  d.className = 'dot' + (i === 0 ? ' active' : '');
+  d.onclick = () => go(i);
+  dotsEl.appendChild(d);
+}
+const dots = Array.from(dotsEl.querySelectorAll('.dot'));
+
+function update() {
+  prog.style.width = ((cur + 1) / TOTAL * 100) + '%';
+  pn.textContent = (cur + 1) + ' / ' + TOTAL;
+  dots.forEach((d, i) => d.classList.toggle('active', i === cur));
+}
+
+function go(n) {
+  if (n < 0 || n >= TOTAL || n === cur) return;
+  slides[cur].classList.remove('active');
+  cur = n;
+  const sl = slides[cur];
+  sl.classList.add('active');
+  // Re-trigger CSS animations
+  sl.querySelectorAll('[class*=" a"]').forEach(el => {
+    const cls = el.className;
+    el.className = cls.replace(/ a\d/g, '');
+    void el.offsetWidth;
+    el.className = cls;
+  });
+  // Restart SVG animations
+  sl.querySelectorAll('animate').forEach(a => { try { a.beginElement(); } catch(e) {} });
+  update();
+  normalizeDiagramTypography(sl);
+}
+
+// Keyboard
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight' || e.key === 'ArrowDown' || e.key === ' ') { e.preventDefault(); go(cur + 1); }
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') { e.preventDefault(); go(cur - 1); }
+  else if (e.key === 'Home') go(0);
+  else if (e.key === 'End') go(TOTAL - 1);
+});
+
+// Click (left third = prev, right third = next, middle = nothing)
+document.getElementById('slides').addEventListener('click', e => {
+  const x = e.clientX / window.innerWidth;
+  if (x < 0.3) go(cur - 1);
+  else if (x > 0.7) go(cur + 1);
+});
+
+// Swipe
+let tx = 0;
+document.addEventListener('touchstart', e => { tx = e.changedTouches[0].screenX; }, {passive: true});
+document.addEventListener('touchend', e => {
+  const dx = e.changedTouches[0].screenX - tx;
+  if (Math.abs(dx) > 50) go(dx < 0 ? cur + 1 : cur - 1);
+}, {passive: true});
+
+document.addEventListener('wheel', e => {
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) return;
+  if (Math.abs(e.deltaY) < 28) return;
+  if (!canSlideByWheel(e.deltaY)) return;
+  if (e.deltaY > 0) go(cur + 1);
+  else go(cur - 1);
+}, {passive: true});
+
+update();
+normalizeDiagramTypography(slides[cur]);
+window.addEventListener('resize', () => normalizeDiagramTypography(slides[cur]));
+</script>
+</body>
+</html>

@@ -545,7 +545,7 @@ A = np.random.uniform(M, N)
 
   <!-- mbarrier 状态机可视化 -->
   <div class="diagram" style="padding: 28px 16px;">
-    <div style="color: var(--muted); font-size: 0.85rem; margin-bottom: 20px;">mbarrier 生命周期：Phase 0 → Phase 1（数据到达后自动翻转）</div>
+    <div style="color: var(--muted); font-size: 0.85rem; margin-bottom: 20px;">mbarrier 生命周期：phase 在 0 和 1 之间交替翻转——第一次以 phase=0 等待，完成后自动翻转为 1；下次复用 mbarrier 时以 phase=1 等待，再次翻转回 0，如此循环</div>
 
     <!-- 时序图 -->
     <div style="display:grid;grid-template-columns:90px 1fr;gap:0;font-size:0.78rem;text-align:left;max-width:680px;margin:0 auto;">

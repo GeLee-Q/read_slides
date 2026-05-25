@@ -250,5 +250,75 @@ document.addEventListener('DOMContentLoaded', async function() {
       window.addEventListener('load', injectMegatronCard, { once: true });
     })();
   </script>
+  <script>
+    (function() {
+      const cardHref = 'cp_tutorial.html';
+
+      function updateMetadata(grid) {
+        const cards = Array.from(grid.querySelectorAll('.card'));
+        const total = cards.length;
+
+        cards.forEach((card, index) => {
+          const label = card.querySelector('.card-index');
+          if (label) {
+            label.textContent = `${String(index + 1).padStart(2, '0')} / ${String(total).padStart(2, '0')}`;
+          }
+        });
+
+        const count = document.getElementById('count2');
+        if (!count) return;
+
+        const published = cards.filter(card => !card.classList.contains('draft')).length;
+        count.textContent = `${String(published).padStart(2, '0')} published · ${total - published} cooking`;
+      }
+
+      function injectCPCard() {
+        const grid = document.getElementById('grid');
+        if (!grid) return false;
+
+        if (grid.querySelector(`a[href="${cardHref}"]`)) {
+          updateMetadata(grid);
+          return true;
+        }
+
+        const card = document.createElement('a');
+        card.className = 'card';
+        card.href = cardHref;
+        card.innerHTML = `
+          <div class="card-top">
+            <span class="card-index">00 / 00</span>
+            <span class="card-arrow"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9L9 3M9 3H4M9 3v5"></path></svg></span>
+          </div>
+          <h3 class="card-title">Slime Context Parallelism 解读</h3>
+          <p class="card-desc">从数据管道到 Megatron 底层 attention：Zigzag Ring Attention、Ulysses A2A 分布式转置、AllGather CP，以及 Slime RLHF 框架中的 logit 提取与梯度同步。</p>
+          <div class="card-foot">
+            <div class="tags">
+              <span class="tag" data-k="sys">Systems</span>
+              <span class="tag" data-k="ai">AI</span>
+            </div>
+            <span class="card-date">2026 · 05</span>
+          </div>
+        `;
+
+        const draft = grid.querySelector('.card.draft');
+        if (draft) {
+          grid.insertBefore(card, draft);
+        } else {
+          grid.appendChild(card);
+        }
+
+        updateMetadata(grid);
+        return true;
+      }
+
+      const timer = window.setInterval(() => {
+        if (injectCPCard()) {
+          window.clearInterval(timer);
+        }
+      }, 200);
+
+      window.addEventListener('load', injectCPCard, { once: true });
+    })();
+  </script>
 </body>
 </html>

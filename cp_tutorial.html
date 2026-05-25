@@ -290,40 +290,99 @@
   </div>
   <div class="bd">
     <div class="cols">
-      <div style="display:flex;flex-direction:column;gap:12px;">
-        <div class="card bl">
-          <h3>计算复杂度</h3>
-          <p class="sm">Self-Attention 对序列长度 <strong>S</strong> 的复杂度：</p>
-          <div style="text-align:center;font-size:2em;font-weight:800;color:var(--blue);padding:8px 0;">O(S²)</div>
-          <p class="xs"><strong>为什么是 O(S²)？</strong><br>每个 token 要和所有其他 token 算一次相似度（Q × Kᵀ），共 S × S 次乘法。</p>
-          <p class="xs" style="margin-top:4px;">S = 128 000 → 矩阵有 128K × 128K = <strong>164 亿</strong>个元素</p>
-        </div>
-        <div class="card bl-o">
-          <h3 class="o">显存占用逐步推导（bfloat16）</h3>
-          <table style="font-size:.8em;margin-top:4px;width:100%;border-collapse:collapse;">
-            <tr><th style="text-align:left;padding:3px 6px;">张量</th><th style="text-align:left;padding:3px 6px;">形状</th><th style="text-align:left;padding:3px 6px;">大小</th></tr>
-            <tr>
-              <td style="padding:3px 6px;color:#3a5a90;">Q / K / V（各）</td>
-              <td style="padding:3px 6px;font-family:'Fira Code',monospace;font-size:.9em;">[S, H, D]</td>
-              <td style="padding:3px 6px;">128K×64×128×<span style="color:#e8923a;font-weight:700;">2B</span> ≈ <strong>2.1 GB</strong></td>
-            </tr>
-            <tr style="background:#fdeaea;">
-              <td style="padding:3px 6px;color:#c03030;">Attention Score（单头）</td>
-              <td style="padding:3px 6px;font-family:'Fira Code',monospace;font-size:.9em;">[S, S]</td>
-              <td style="padding:3px 6px;color:#d85555;font-weight:700;">128K×128K×2B ≈ 32 GB</td>
-            </tr>
-            <tr>
-              <td style="padding:3px 6px;color:#3a7a50;">一张 H100 上限</td>
-              <td style="padding:3px 6px;">—</td>
-              <td style="padding:3px 6px;font-weight:700;">80 GB</td>
-            </tr>
-          </table>
-          <div class="note note-o" style="margin-top:8px;font-size:.85em;">
-            <strong>2B 是什么？</strong> bfloat16 = 脑浮点16位，每个数占 <strong>2 字节（Bytes）</strong>。<br>
-            <strong>单头 Score 为何 32 GB？</strong> 每个 Q-token 要对所有 128K 个 K-token 算一个分数 → 矩阵是 128K × 128K 的方阵。<br>
-            加上权重 + 梯度 + 优化器 → 单卡根本装不下。
-          </div>
-        </div>
+      <div>
+        <p class="sm bold" style="margin-bottom:6px;">为什么 Attention 是 O(S²)？</p>
+        <svg width="400" height="390" viewBox="0 0 400 390" style="display:block;">
+
+          <!-- ===== Part 1: Q × K^T = Score ===== -->
+          <text x="0" y="14" font-family="Inter" font-size="11" font-weight="700" fill="#1e2a4a">① S×S 从哪里来：矩阵乘法结构</text>
+
+          <!-- token sequence -->
+          <text x="0" y="33" font-family="Inter" font-size="9.5" fill="#6b7299">输入序列（S tokens）</text>
+          <rect x="0"   y="37" width="20" height="14" rx="2" fill="#b8d4f0" stroke="#5b74d8" stroke-width="1"/>
+          <rect x="24"  y="37" width="20" height="14" rx="2" fill="#b8d4f0" stroke="#5b74d8" stroke-width="1"/>
+          <rect x="48"  y="37" width="20" height="14" rx="2" fill="#b8d4f0" stroke="#5b74d8" stroke-width="1"/>
+          <rect x="72"  y="37" width="20" height="14" rx="2" fill="#b8d4f0" stroke="#5b74d8" stroke-width="1"/>
+          <text x="96"  y="47" font-family="Inter" font-size="11" fill="#9090b0">···</text>
+          <rect x="112" y="37" width="20" height="14" rx="2" fill="#b8d4f0" stroke="#5b74d8" stroke-width="1"/>
+
+          <!-- Q block: tall narrow [S × D] -->
+          <rect x="0" y="62" width="32" height="90" rx="3" fill="#cfe0f8" stroke="#5b74d8" stroke-width="1.5"/>
+          <text x="16" y="101" text-anchor="middle" font-family="Inter" font-size="11" font-weight="700" fill="#2a3a80">Q</text>
+          <text x="16" y="115" text-anchor="middle" font-family="Inter" font-size="8.5" fill="#4a5890">[S×D]</text>
+          <text x="-4" y="108" text-anchor="end" font-family="Inter" font-size="8" fill="#8890aa">S↕</text>
+          <text x="16" y="158" text-anchor="middle" font-family="Inter" font-size="8" fill="#8890aa">D→</text>
+
+          <!-- × -->
+          <text x="40" y="112" font-family="Inter" font-size="18" font-weight="800" fill="#6b82e0">×</text>
+
+          <!-- K^T block: short wide [D × S] -->
+          <rect x="60" y="62" width="110" height="32" rx="3" fill="#c8eedd" stroke="#4aad96" stroke-width="1.5"/>
+          <text x="115" y="82" text-anchor="middle" font-family="Inter" font-size="11" font-weight="700" fill="#1a6040">Kᵀ</text>
+          <text x="115" y="102" text-anchor="middle" font-family="Inter" font-size="8.5" fill="#2a6040">[D×S]</text>
+          <text x="115" y="56" text-anchor="middle" font-family="Inter" font-size="8" fill="#8890aa">←S→</text>
+
+          <!-- = -->
+          <text x="180" y="112" font-family="Inter" font-size="18" font-weight="800" fill="#6b82e0">=</text>
+
+          <!-- Score block: [S × S] square -->
+          <rect x="202" y="62" width="110" height="110" rx="3" fill="#fde8e8" stroke="#d85555" stroke-width="2"/>
+          <text x="257" y="108" text-anchor="middle" font-family="Inter" font-size="11" font-weight="700" fill="#c03030">Score</text>
+          <text x="257" y="124" text-anchor="middle" font-family="Inter" font-size="9" fill="#c03030">[S × S]</text>
+          <text x="257" y="56" text-anchor="middle" font-family="Inter" font-size="8" fill="#d85555">←S→</text>
+          <text x="198" y="120" text-anchor="end" font-family="Inter" font-size="8" fill="#d85555">S↕</text>
+
+          <!-- annotation: "每个token都要和所有S个token比" -->
+          <line x1="0" y1="62" x2="0" y2="172" stroke="#5b74d8" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/>
+          <line x1="202" y1="172" x2="312" y2="172" stroke="#d85555" stroke-width="1" stroke-dasharray="3,2" opacity=".5"/>
+          <text x="0" y="183" font-family="Inter" font-size="9" fill="#4a5270">每个 Q-token 对所有 S 个 K-token 各算一次点积</text>
+          <text x="0" y="196" font-family="Inter" font-size="9.5" font-weight="700" fill="#d85555">→ Score 矩阵大小 = S × S，随序列增长是平方级</text>
+
+          <!-- divider -->
+          <line x1="0" y1="210" x2="400" y2="210" stroke="#d0d8f0" stroke-width="1.2"/>
+
+          <!-- ===== Part 2: quadratic explosion ===== -->
+          <text x="0" y="226" font-family="Inter" font-size="11" font-weight="700" fill="#1e2a4a">② 序列翻倍时，Score 面积翻 4 倍</text>
+
+          <!-- Row 1: sequence S, Score S×S (small) -->
+          <!-- token strip -->
+          <rect x="0"  y="237" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="14" y="237" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="28" y="237" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="42" y="237" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <text x="58" y="247" font-family="Inter" font-size="9" fill="#9090b0">S tokens</text>
+          <!-- Score S×S -->
+          <rect x="155" y="232" width="44" height="44" rx="2" fill="#fde8e8" stroke="#d85555" stroke-width="1.5"/>
+          <text x="177" y="257" text-anchor="middle" font-family="Inter" font-size="8.5" fill="#c03030">S × S</text>
+          <text x="205" y="257" font-family="Inter" font-size="9" fill="#555">= 1 份</text>
+
+          <!-- Row 2: sequence 2S, Score 2S×2S (large) -->
+          <rect x="0"  y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="14" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="28" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="42" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="56" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="70" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="84" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <rect x="98" y="295" width="12" height="12" rx="1" fill="#b8d4f0" stroke="#5b74d8" stroke-width=".8"/>
+          <text x="114" y="305" font-family="Inter" font-size="9" fill="#9090b0">2S tokens</text>
+          <!-- Score 2S×2S -->
+          <rect x="155" y="282" width="90" height="90" rx="2" fill="#f8b0b0" stroke="#d85555" stroke-width="2"/>
+          <!-- subdivide into 4 quadrants to show ×4 -->
+          <line x1="200" y1="282" x2="200" y2="372" stroke="#d85555" stroke-width="1" opacity=".4"/>
+          <line x1="155" y1="327" x2="245" y2="327" stroke="#d85555" stroke-width="1" opacity=".4"/>
+          <text x="200" y="330" text-anchor="middle" font-family="Inter" font-size="9" fill="#c03030">2S × 2S</text>
+          <text x="253" y="323" font-family="Inter" font-size="11" font-weight="800" fill="#d85555">= 4×</text>
+
+          <!-- brace showing ×2 in token count -->
+          <line x1="148" y1="243" x2="143" y2="243" stroke="#6b82e0" stroke-width="1.2"/>
+          <line x1="143" y1="243" x2="143" y2="301" stroke="#6b82e0" stroke-width="1.2"/>
+          <line x1="143" y1="301" x2="148" y2="301" stroke="#6b82e0" stroke-width="1.2"/>
+          <text x="140" y="275" text-anchor="end" font-family="Inter" font-size="9" fill="#6b82e0">S×2</text>
+
+          <!-- caption -->
+          <text x="0" y="384" font-family="Inter" font-size="9" fill="#8890aa">Q/K/V 自身线性增长（S×D），Score 是瓶颈：O(S²)</text>
+        </svg>
       </div>
 
       <div>

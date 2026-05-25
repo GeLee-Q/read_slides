@@ -86,9 +86,19 @@
   }
   .brand b { font-weight: 600; color: var(--ink); }
   .brand span { color: var(--ink-mute); }
-  .nav-links { display: flex; gap: 22px; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
+  .nav-links { display: flex; align-items: center; gap: 22px; font-family: var(--mono); font-size: 12px; color: var(--ink-dim); }
   .nav-links a { transition: color .15s; }
   .nav-links a:hover { color: var(--pink); }
+  .star-btn {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 5px 12px;
+    background: var(--yellow); color: var(--ink);
+    border: 1.5px solid var(--ink); border-radius: 999px;
+    font-weight: 600; box-shadow: 2px 2px 0 var(--ink);
+    transition: transform .15s, box-shadow .15s;
+  }
+  .star-btn:hover { color: var(--ink); transform: translate(-1px,-1px); box-shadow: 3px 3px 0 var(--ink); }
+  .star-btn svg { width: 12px; height: 12px; flex-shrink: 0; }
 
   /* hero */
   .hero { padding: 96px 0 56px; position: relative; }
@@ -204,6 +214,10 @@
     <div class="nav-links">
       <a href="#archive">archive</a>
       <a href="https://github.com/GeLee-Q" target="_blank" rel="noopener">github ↗</a>
+      <a href="https://github.com/GeLee-Q/read_slides" target="_blank" rel="noopener" class="star-btn">
+        <svg viewBox="0 0 16 16" fill="currentColor" aria-hidden="true"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.818 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>
+        Star
+      </a>
     </div>
   </div>
 </nav>

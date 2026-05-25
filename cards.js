@@ -1,0 +1,45 @@
+const CARDS = [
+  {
+    title: 'RL × slime 解析',
+    desc: '一份对 slime 这个 RL + RLHF 训练框架的解读：采样循环、奖励路径，以及 rollout 和 trainer 怎么协作。',
+    tags: [['rl', 'RL'], ['sys', 'Systems'], ['note', 'Notes']],
+    date: '2026 · 04',
+    href: 'rl-slime.html',
+  },
+  {
+    title: 'PR Tracker',
+    desc: 'slime × miles 生态每日 PR 追踪：AI 自动分类，区分通用改动与仓库专属改动。',
+    tags: [['rl', 'RL'], ['sys', 'Systems']],
+    date: '2026 · 04',
+    href: 'pr-tracker/pr-tracker.html',
+  },
+  {
+    title: 'SGLang EP 解读',
+    desc: 'SGLang 中 Expert Parallel 的通俗解析：ep group 如何划分、All-to-All token dispatch 原理，以及专家权重的内存分配。',
+    tags: [['sys', 'Systems'], ['ai', 'AI']],
+    date: '2026 · 05',
+    href: 'sglang_ep.html',
+  },
+  {
+    title: 'Megatron-LM EP 解读',
+    desc: '从 MoE 专家并行的视角梳理 Megatron-LM：Top-K 路由、All-to-All token dispatch、GroupedGEMM，以及 DeepEP / HybridEP 等工程优化。',
+    tags: [['sys', 'Systems'], ['ai', 'AI']],
+    date: '2026 · 05',
+    href: 'megatron_ep.html',
+  },
+  {
+    title: 'slime Context Parallelism 解读',
+    desc: '从数据管道到 Megatron 底层 attention：Zigzag Ring Attention、Ulysses A2A 分布式转置、AllGather CP，以及 slime RLHF 框架中的 logit 提取与梯度同步。',
+    tags: [['sys', 'Systems'], ['ai', 'AI']],
+    date: '2026 · 05',
+    href: 'cp_tutorial.html',
+  },
+  {
+    title: '新的 slides 在路上…',
+    desc: '主题偏向 LLM 系统、训练栈，以及值得再读一遍的论文。敬请期待 ✿',
+    tags: [['ai', 'AI'], ['paper', 'Paper']],
+    date: 'soon',
+    href: null,
+    draft: true,
+  },
+];

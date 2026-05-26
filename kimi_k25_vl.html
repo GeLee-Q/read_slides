@@ -117,7 +117,7 @@
   background: var(--codebg); border-radius: 8px;
   padding: 11px 15px; font-family: 'Fira Code', monospace;
   font-size: .71em; color: var(--codefg); line-height: 1.68;
-  overflow: auto; max-height: 260px;
+  overflow: auto; max-height: 260px; white-space: pre;
 }
 .code mark { background: #3a4570; color: #f0d090; border-radius: 2px; padding: 1px 2px; }
 .code .add { color: #a5d6a7; }
@@ -730,14 +730,14 @@
 <div class="s">
   <div class="hd">
     <div class="badge">Part 1.1</div>
-    <h2>分离集群：Megatron → HF 权重转换适配
+    <h2>Disaggregation 路径：Megatron → HF 权重转换适配
       <a href="https://github.com/THUDM/slime/pull/1532" target="_blank" class="pr" style="vertical-align:middle;margin-left:12px;font-size:.55em;">↗ slime/pull/1532</a>
     </h2>
   </div>
   <div class="bd">
     <!-- 数据流 -->
     <div class="card bl" style="flex-shrink:0;">
-      <p class="xs bold" style="margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;">权重更新数据流（分离集群）</p>
+      <p class="xs bold" style="margin-bottom:8px;letter-spacing:.5px;text-transform:uppercase;">权重更新数据流（Disaggregation）</p>
       <svg width="1300" height="60" viewBox="0 0 1300 60">
         <defs>
           <marker id="af" markerWidth="7" markerHeight="7" refX="6" refY="3" orient="auto">
@@ -745,7 +745,7 @@
           </marker>
         </defs>
         <rect x="0"   y="8" width="220" height="44" rx="7" fill="#edf0fb" stroke="#5b74d8" stroke-width="1.5"/>
-        <text x="110" y="27" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#1e2a4a">🏋️ Megatron 训练集群</text>
+        <text x="110" y="27" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#1e2a4a">🏋️ Megatron 训练端</text>
         <text x="110" y="43" text-anchor="middle" font-family="Inter" font-size="9.5" fill="#5b74d8">生成 Megatron 格式权重</text>
         <line x1="220" y1="30" x2="280" y2="30" stroke="#5b74d8" stroke-width="1.5" marker-end="url(#af)"/>
 
@@ -760,7 +760,7 @@
         <line x1="844" y1="30" x2="904" y2="30" stroke="#5b74d8" stroke-width="1.5" marker-end="url(#af)"/>
 
         <rect x="906" y="8" width="230" height="44" rx="7" fill="#f3effe" stroke="#a07cd8" stroke-width="1.5"/>
-        <text x="1021" y="27" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#4a148c">🎲 SGLang 推理集群</text>
+        <text x="1021" y="27" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#4a148c">🎲 SGLang 推理端</text>
         <text x="1021" y="43" text-anchor="middle" font-family="Inter" font-size="9.5" fill="#a07cd8">加载更新后的权重</text>
         <line x1="1136" y1="30" x2="1196" y2="30" stroke="#5b74d8" stroke-width="1.5" marker-end="url(#af)"/>
 
@@ -825,7 +825,7 @@
 <div class="s">
   <div class="hd">
     <div class="badge g">Part 1.2</div>
-    <h2>同集群 Colocate：MLA q-lora 配对修复
+    <h2>共卡 Colocate：MLA q-lora 配对修复
       <a href="https://github.com/THUDM/slime/pull/1753" target="_blank" class="pr g" style="vertical-align:middle;margin-left:12px;font-size:.55em;">↗ slime/pull/1753</a>
     </h2>
   </div>
@@ -856,7 +856,7 @@
           源码注释写明：<em>"to compatible with sglang implementation"</em>。SGLang 在加载 MLA 权重时，需要 q_a_proj 和 kv_a_proj_with_mqa <strong>同批</strong>（同一 chunk）到达才能完成权重更新。若分批发送，SGLang 无法正确加载，与量化无关。
         </div>
         <div class="note note-b">
-          <strong>📌 背景：</strong>分离集群路径（<code>megatron_to_hf/__init__.py</code> 的 <code>_convert_to_hf_core()</code>）已通过 <code>_cached_tensors</code> 实现此配对。PR #1753 为 <strong>Bridge 同集群路径</strong>的 <code>_streaming_quantized()</code> 补充同等机制。
+          <strong>📌 背景：</strong>分离集群路径（<code>megatron_to_hf/__init__.py</code> 的 <code>_convert_to_hf_core()</code>）已通过 <code>_cached_tensors</code> 实现此配对。PR #1753 为 <strong>Bridge 共卡路径</strong>的 <code>_streaming_quantized()</code> 补充同等机制。
         </div>
       </div>
 

@@ -252,8 +252,8 @@
       6 个 PR · 5 步改造 · 完整技术解析
     </div>
     <div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
-      <span class="pill pb">分离集群权重转换</span>
-      <span class="pill pc">同集群 q-lora 配对</span>
+      <span class="pill pb">训推分离权重转换</span>
+      <span class="pill pc">训推共卡 q-lora 配对</span>
       <span class="pill po">配置参数透传</span>
       <span class="pill pr-p">VL Rollout 适配</span>
       <span class="pill pg">量化工具修复</span>
@@ -531,7 +531,7 @@
       <rect x="20"  y="148" width="208" height="200" rx="9" fill="#edf0fb" stroke="#5b74d8" stroke-width="1.8"/>
       <text x="124" y="172" text-anchor="middle" font-family="Inter" font-weight="800" font-size="12" fill="#1e2a4a">Part 1.1</text>
       <text x="124" y="190" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#5b74d8">权重转换</text>
-      <text x="124" y="210" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">分离集群路径</text>
+      <text x="124" y="210" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">训推分离路径</text>
       <text x="124" y="226" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">Megatron → HF</text>
       <line x1="30" y1="248" x2="218" y2="248" stroke="#e4e8f2" stroke-width="1"/>
       <text x="124" y="268" text-anchor="middle" font-family="Inter" font-size="10" fill="#8890aa">kimi_vl.py 新增</text>
@@ -545,7 +545,7 @@
       <rect x="308" y="148" width="208" height="200" rx="9" fill="#e8f5f1" stroke="#4aad96" stroke-width="1.8"/>
       <text x="412" y="172" text-anchor="middle" font-family="Inter" font-weight="800" font-size="12" fill="#1e2a4a">Part 1.2</text>
       <text x="412" y="190" text-anchor="middle" font-family="Inter" font-weight="700" font-size="11" fill="#4aad96">q-lora 配对</text>
-      <text x="412" y="210" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">同集群路径</text>
+      <text x="412" y="210" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">训推共卡路径</text>
       <text x="412" y="226" text-anchor="middle" font-family="Inter" font-size="10" fill="#3a4260">Bridge 权重更新</text>
       <line x1="318" y1="248" x2="506" y2="248" stroke="#e4e8f2" stroke-width="1"/>
       <text x="412" y="268" text-anchor="middle" font-family="Inter" font-size="10" fill="#8890aa">MLA q_a_proj</text>
@@ -856,7 +856,7 @@
           源码注释写明：<em>"to compatible with sglang implementation"</em>。SGLang 在加载 MLA 权重时，需要 q_a_proj 和 kv_a_proj_with_mqa <strong>同批</strong>（同一 chunk）到达才能完成权重更新。若分批发送，SGLang 无法正确加载，与量化无关。
         </div>
         <div class="note note-b">
-          <strong>📌 背景：</strong>分离集群路径（<code>megatron_to_hf/__init__.py</code> 的 <code>_convert_to_hf_core()</code>）已通过 <code>_cached_tensors</code> 实现此配对。PR #1753 为 <strong>Bridge 共卡路径</strong>的 <code>_streaming_quantized()</code> 补充同等机制。
+          <strong>📌 背景：</strong>训推分离路径（<code>megatron_to_hf/__init__.py</code> 的 <code>_convert_to_hf_core()</code>）已通过 <code>_cached_tensors</code> 实现此配对。PR #1753 为 <strong>Bridge 共卡路径</strong>的 <code>_streaming_quantized()</code> 补充同等机制。
         </div>
       </div>
 
@@ -1410,12 +1410,12 @@
             </tr>
             <tr>
               <td><a href="https://github.com/THUDM/slime/pull/1532" target="_blank" class="pr">↗ #1532</a></td>
-              <td class="sm">Part 1.1 · 分离集群权重转换</td>
+              <td class="sm">Part 1.1 · 训推分离权重转换</td>
               <td><span class="pill" style="background:#edf0fb;color:#5b74d8;border:1px solid #c8d0f0;">● Open</span></td>
             </tr>
             <tr>
               <td><a href="https://github.com/THUDM/slime/pull/1753" target="_blank" class="pr g">↗ #1753</a></td>
-              <td class="sm">Part 1.2 · 同集群 q-lora 配对</td>
+              <td class="sm">Part 1.2 · 训推共卡 q-lora 配对</td>
               <td><span class="pill" style="background:#e8f5f1;color:#4aad96;border:1px solid #b8e0d8;">● Open</span></td>
             </tr>
             <tr>
@@ -1446,11 +1446,11 @@
       <div class="col">
         <p class="xs bold" style="margin-bottom:6px;letter-spacing:.5px;text-transform:uppercase;">5 步改造核心要点</p>
         <div class="card bl">
-          <h3>1.1 &nbsp; 分离集群权重转换</h3>
+          <h3>1.1 &nbsp; 训推分离权重转换</h3>
           <p class="sm">修复层名正则兼容 <code>language_model.</code> 前缀；新增 <code>kimi_vl.py</code> 分段处理 vision_tower、mm_projector、language_model 三类权重映射</p>
         </div>
         <div class="card bl-g g">
-          <h3>1.2 &nbsp; 同集群 Bridge 配对修复</h3>
+          <h3>1.2 &nbsp; 训推共卡 Bridge 配对修复</h3>
           <p class="sm">MLA 的 <code>q_a_proj</code> 与 <code>kv_a_proj_with_mqa</code> 必须配对量化；引入缓存等待机制 <code>postprocess_q_lora_converted_tensors()</code></p>
         </div>
         <div class="card bl-o o">

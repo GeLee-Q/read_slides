@@ -7,13 +7,6 @@ const CARDS = [
     href: 'rl-slime.html',
   },
   {
-    title: 'PR Tracker',
-    desc: 'slime × miles 生态每日 PR 追踪：AI 自动分类，区分通用改动与仓库专属改动。',
-    tags: [['rl', 'RL'], ['sys', 'Systems']],
-    date: '2026 · 04',
-    href: 'pr-tracker/pr-tracker.html',
-  },
-  {
     title: 'SGLang EP 解读',
     desc: 'SGLang 中 Expert Parallel 的通俗解析：ep group 如何划分、All-to-All token dispatch 原理，以及专家权重的内存分配。',
     tags: [['sys', 'Systems'], ['ai', 'AI']],

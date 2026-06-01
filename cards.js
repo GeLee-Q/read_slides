@@ -14,27 +14,6 @@ const CARDS = [
     href: 'sglang_ep.html',
   },
   {
-    title: 'Megatron-LM EP 解读',
-    desc: '从 MoE 专家并行的视角梳理 Megatron-LM：Top-K 路由、All-to-All token dispatch、GroupedGEMM，以及 DeepEP / HybridEP 等工程优化。',
-    tags: [['sys', 'Systems'], ['ai', 'AI']],
-    date: '2026 · 05',
-    href: 'megatron_ep.html',
-  },
-  {
-    title: 'slime Context Parallelism 解读',
-    desc: '从数据管道到 Megatron 底层 attention：Zigzag Ring Attention、Ulysses A2A 分布式转置、AllGather CP，以及 slime RLHF 框架中的 logit 提取与梯度同步。',
-    tags: [['sys', 'Systems'], ['ai', 'AI']],
-    date: '2026 · 05',
-    href: 'cp_tutorial.html',
-  },
-  {
-    title: 'Kimi K2.5 VL × slime 适配',
-    desc: '6 个 PR、5 个维度：MLA q-lora 权重更新配对、Megatron Bridge 权重映射、参数透传、VL Rollout Processor API，以及 INT4/FP8 量化的视觉组件豁免规则。',
-    tags: [['rl', 'RL'], ['sys', 'Systems'], ['ai', 'AI']],
-    date: '2026 · 05',
-    href: 'kimi_k25_vl.html',
-  },
-  {
     title: '新的 slides 在路上…',
     desc: '主题偏向 LLM 系统、训练栈，以及值得再读一遍的论文。敬请期待 ✿',
     tags: [['ai', 'AI'], ['paper', 'Paper']],
